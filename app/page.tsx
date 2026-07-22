@@ -25,12 +25,13 @@ export default function LoginPage() {
   const byBranch = (bid: string | null) => db.users.filter((u) => u.branch_id === bid && u.active);
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-emerald-800 to-emerald-950">
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-orange-50 to-orange-200">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-2">🐾</div>
-          <h1 className="text-2xl font-extrabold text-white">CMN Pet Supply</h1>
-          <p className="text-emerald-200 text-sm">Multi-branch management system · Demo</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.jpg" alt="CMN Trading Corporation logo" className="w-28 h-28 mx-auto rounded-full shadow-lg mb-3" />
+          <h1 className="text-2xl font-extrabold text-orange-900">CMN Trading Corporation</h1>
+          <p className="text-orange-800/70 text-sm">Multi-branch management system · Demo</p>
         </div>
 
         <div className="card p-4 mb-4">
@@ -61,7 +62,7 @@ export default function LoginPage() {
             </div>
           ))}
         </div>
-        <p className="text-emerald-200/70 text-xs text-center mt-2">
+        <p className="text-orange-900/60 text-xs text-center mt-2">
           Demo PINs are shown for convenience. Data lives on this device (localStorage).
         </p>
       </div>

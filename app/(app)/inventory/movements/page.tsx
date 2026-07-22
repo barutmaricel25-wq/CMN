@@ -7,7 +7,7 @@ import { fmtDateTime } from "@/lib/util";
 import { MovementType } from "@/lib/types";
 
 const TYPE_META: Record<MovementType, { label: string; cls: string }> = {
-  delivery_in: { label: "Delivery in", cls: "bg-emerald-100 text-emerald-700" },
+  delivery_in: { label: "Delivery in", cls: "bg-orange-100 text-orange-700" },
   pull_down: { label: "Pull down", cls: "bg-blue-100 text-blue-700" },
   transfer_out: { label: "Transfer out", cls: "bg-purple-100 text-purple-700" },
   transfer_in: { label: "Transfer in", cls: "bg-purple-100 text-purple-700" },

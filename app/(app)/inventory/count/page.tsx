@@ -41,7 +41,7 @@ export default function StockCountPage() {
       <div className="card p-3 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           {(["storefront", "stockroom"] as Location[]).map((l) => (
-            <button key={l} className={`btn ${location === l ? "bg-emerald-700 text-white" : "bg-white border border-slate-300"}`}
+            <button key={l} className={`btn ${location === l ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
               onClick={() => { setLocation(l); setCounts({}); setDone(false); }}>
               {l === "storefront" ? "🏪 Store floor" : "📦 2F stockroom"}
             </button>
@@ -61,7 +61,7 @@ export default function StockCountPage() {
               <div className="text-sm font-semibold truncate mr-2">{p.name}</div>
               <div className="text-sm tabular-nums whitespace-nowrap">
                 counted <b>{counted}</b> / system {sys}{" "}
-                {diff !== 0 && <span className={`badge ${diff > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{diff > 0 ? "+" : ""}{diff}</span>}
+                {diff !== 0 && <span className={`badge ${diff > 0 ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"}`}>{diff > 0 ? "+" : ""}{diff}</span>}
               </div>
             </div>
           );
@@ -74,7 +74,7 @@ export default function StockCountPage() {
           Apply {diffs.length} correction{diffs.length > 1 ? "s" : ""} (manager PIN)
         </button>
       )}
-      {done && <p className="text-center text-sm text-emerald-700 font-semibold">✅ Corrections posted as adjustment movements.</p>}
+      {done && <p className="text-center text-sm text-orange-700 font-semibold">✅ Corrections posted as adjustment movements.</p>}
 
       {pin && (
         <PinModal

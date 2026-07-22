@@ -48,7 +48,7 @@ export default function PinModal({
             <div
               key={i}
               className={`w-4 h-4 rounded-full border-2 ${
-                pin.length > i ? "bg-emerald-700 border-emerald-700" : "border-slate-300"
+                pin.length > i ? "bg-orange-700 border-orange-700" : "border-slate-300"
               }`}
             />
           ))}

@@ -54,7 +54,7 @@ export default function PullDownPage() {
 
   return (
     <div className="space-y-3">
-      <div className="card p-4 bg-emerald-50 border-emerald-200">
+      <div className="card p-4 bg-orange-50 border-orange-200">
         <h1 className="font-bold text-lg">⬇️ Pull Down — 2F Stockroom → Store Floor</h1>
         <p className="text-sm text-slate-600">Scan each item you carry downstairs. That&apos;s it — the movement is recorded with your name and time.</p>
       </div>
@@ -72,7 +72,7 @@ export default function PullDownPage() {
       </div>
 
       {pending && (
-        <div className="card p-4 border-emerald-400 border-2">
+        <div className="card p-4 border-orange-400 border-2">
           <div className="font-bold">{pending.name} <span className="text-slate-400 font-normal">{pending.size_variant}</span></div>
           <div className="text-xs text-slate-500 mb-3">
             In stockroom: {srQty(pending.id)}

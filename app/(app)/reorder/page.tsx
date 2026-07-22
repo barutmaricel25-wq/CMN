@@ -78,7 +78,7 @@ export default function ReorderPage() {
                 </td>
                 <td className={`px-3 py-2 text-center font-bold tabular-nums ${r.current === 0 ? "text-red-600" : ""}`}>{r.current}</td>
                 <td className="px-3 py-2 text-center tabular-nums">{r.threshold}</td>
-                <td className="px-3 py-2 text-center font-extrabold text-emerald-700 tabular-nums">{r.suggested} {r.unit}</td>
+                <td className="px-3 py-2 text-center font-extrabold text-orange-700 tabular-nums">{r.suggested} {r.unit}</td>
               </tr>
             ))}
             {rows.length === 0 && (

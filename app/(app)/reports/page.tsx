@@ -107,9 +107,9 @@ export default function ReportsPage() {
 
 function Tile({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className={`rounded-xl border p-2.5 ${strong ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+    <div className={`rounded-xl border p-2.5 ${strong ? "bg-orange-50 border-orange-200" : "bg-slate-50 border-slate-200"}`}>
       <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`font-extrabold tabular-nums ${strong ? "text-emerald-700" : ""}`}>{value}</div>
+      <div className={`font-extrabold tabular-nums ${strong ? "text-orange-700" : ""}`}>{value}</div>
     </div>
   );
 }

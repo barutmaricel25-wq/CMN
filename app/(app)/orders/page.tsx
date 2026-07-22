@@ -56,7 +56,7 @@ export default function OrdersPage() {
                 {col.map((o) => {
                   const cust = db.customers.find((c) => c.id === o.customer_id);
                   return (
-                    <button key={o.id} className="card w-full text-left p-3 hover:border-emerald-500" onClick={() => setOpenOrder(o.id)}>
+                    <button key={o.id} className="card w-full text-left p-3 hover:border-orange-500" onClick={() => setOpenOrder(o.id)}>
                       <div className="font-semibold text-sm truncate">{cust?.name ?? "Customer"}</div>
                       <div className="text-xs text-slate-500">{o.items.length} items · {peso(o.total)}</div>
                       <div className="text-[10px] text-slate-400 mt-1">{o.source} · {fmtDateTime(o.created_at)}</div>
@@ -96,7 +96,7 @@ function OrderSheet({ order, onClose }: { order: OnlineOrder; onClose: () => voi
     })
     .join("\n");
   const templates: Record<string, string> = {
-    "Order confirmation": `Hi ${cust?.name}! Confirmed po ang order niyo:\n${itemLines}\nTOTAL: ${peso(order.total)}\nSalamat po! — CMN Pet Supply`,
+    "Order confirmation": `Hi ${cust?.name}! Confirmed po ang order niyo:\n${itemLines}\nTOTAL: ${peso(order.total)}\nSalamat po! — CMN Trading Corporation`,
     "Ready for payment": `Hi ${cust?.name}! Ready na po ang order niyo (${peso(order.total)}).\nPayment options:\n${db.settings.gcash_details}\n${db.settings.bank_details}\nSend po ng screenshot pag nakabayad na. Salamat!`,
     "Paid — book courier": `Payment received po, salamat! ${peso(order.total)} ✅\nPacked na po ang order niyo — pwede na po mag-book ng courier (Lalamove/Grab) papunta sa store. Ingat po!`,
   };
@@ -130,7 +130,7 @@ function OrderSheet({ order, onClose }: { order: OnlineOrder; onClose: () => voi
             <h3 className="font-bold text-lg">{cust?.name}</h3>
             <div className="text-xs text-slate-500">{cust?.phone} · via {order.source} · {fmtDateTime(order.created_at)}</div>
           </div>
-          <span className="badge bg-emerald-100 text-emerald-800">{LABEL[order.status]}</span>
+          <span className="badge bg-orange-100 text-orange-800">{LABEL[order.status]}</span>
         </div>
 
         <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl mb-3">
@@ -182,7 +182,7 @@ function OrderSheet({ order, onClose }: { order: OnlineOrder; onClose: () => voi
           {Object.keys(templates).map((name) => (
             <button key={name} className="btn-secondary !py-2 justify-between text-xs" onClick={() => copy(name)}>
               <span>💬 {name}</span>
-              <span className="text-emerald-700 font-bold">{copied === name ? "Copied!" : "Copy"}</span>
+              <span className="text-orange-700 font-bold">{copied === name ? "Copied!" : "Copy"}</span>
             </button>
           ))}
         </div>

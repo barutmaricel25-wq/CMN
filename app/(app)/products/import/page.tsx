@@ -127,7 +127,7 @@ export default function ImportPage() {
           >
             Import {dataRows.length} rows
           </button>
-          {result && <p className="text-sm font-semibold text-emerald-700">{result}</p>}
+          {result && <p className="text-sm font-semibold text-orange-700">{result}</p>}
         </div>
       )}
     </div>

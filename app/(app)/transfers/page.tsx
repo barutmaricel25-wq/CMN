@@ -100,7 +100,7 @@ export default function TransfersPage() {
                   {t.note?.includes("DISCREPANCY") && <div className="text-xs text-red-600 font-semibold mt-1">{t.note.split("\n").find((l) => l.includes("DISCREPANCY"))}</div>}
                 </div>
                 <div className="text-right">
-                  <span className={`badge ${t.status === "received" ? "bg-emerald-100 text-emerald-700" : t.status === "in_transit" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-700"}`}>{t.status}</span>
+                  <span className={`badge ${t.status === "received" ? "bg-orange-100 text-orange-700" : t.status === "in_transit" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-700"}`}>{t.status}</span>
                   {actionable && (
                     <button className="btn-primary !py-1.5 !px-3 text-xs block mt-1" onClick={() => {
                       setConfirmT(t);

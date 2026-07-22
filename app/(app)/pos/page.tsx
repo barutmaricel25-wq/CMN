@@ -138,7 +138,7 @@ export default function POSPage() {
             {results.map((p) => (
               <button
                 key={p.id}
-                className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 flex justify-between items-center"
+                className="w-full text-left px-3 py-2.5 hover:bg-orange-50 flex justify-between items-center"
                 onClick={() => { addProduct(p); setSearch(""); }}
               >
                 <span className="text-sm">
@@ -210,7 +210,7 @@ export default function POSPage() {
         {cart.lines.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
             <span className="text-lg font-bold">Total</span>
-            <span className="text-2xl font-extrabold text-emerald-700 tabular-nums">{peso(subtotal)}</span>
+            <span className="text-2xl font-extrabold text-orange-700 tabular-nums">{peso(subtotal)}</span>
           </div>
         )}
         <div className="grid grid-cols-2 gap-2 mt-3">
@@ -225,7 +225,7 @@ export default function POSPage() {
 
       {/* Last sale: reprint + void */}
       {lastSale && (
-        <div className="card p-3 flex items-center justify-between bg-emerald-50 border-emerald-200">
+        <div className="card p-3 flex items-center justify-between bg-orange-50 border-orange-200">
           <div>
             <div className="font-bold text-sm">✅ Sale #{String(lastSale.receipt_no).padStart(6, "0")} — {peso(lastSale.total)}</div>
             <div className="text-xs text-slate-500">{lastSale.status === "voided" ? "VOIDED" : "Completed"}</div>
@@ -316,12 +316,12 @@ function PaymentSheet({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onCancel}>
       <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold mb-1">Payment</h3>
-        <div className="text-3xl font-extrabold text-emerald-700 mb-4 tabular-nums">{peso(total)}</div>
+        <div className="text-3xl font-extrabold text-orange-700 mb-4 tabular-nums">{peso(total)}</div>
         <div className="grid grid-cols-3 gap-2 mb-4">
           {(["cash", "gcash", "bank_transfer"] as PaymentMethod[]).map((m) => (
             <button
               key={m}
-              className={`btn ${method === m ? "bg-emerald-700 text-white" : "bg-white border border-slate-300"}`}
+              className={`btn ${method === m ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
               onClick={() => setMethod(m)}
             >
               {m === "cash" ? "💵 Cash" : m === "gcash" ? "📱 GCash" : "🏦 Bank"}
@@ -350,7 +350,7 @@ function PaymentSheet({
                 Exact
               </button>
             </div>
-            <div className={`mt-3 text-lg font-bold tabular-nums ${change < 0 ? "text-red-600" : "text-emerald-700"}`}>
+            <div className={`mt-3 text-lg font-bold tabular-nums ${change < 0 ? "text-red-600" : "text-orange-700"}`}>
               Change: {peso(Math.max(0, change))}
               {change < 0 && <span className="text-sm font-semibold"> (short {peso(-change)})</span>}
             </div>

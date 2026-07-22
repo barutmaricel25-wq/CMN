@@ -71,7 +71,7 @@ export default function DeliveriesPage() {
                     <div className="font-semibold text-sm">{d.supplier_name}</div>
                     <div className="text-xs text-slate-500">{fmtDateTime(d.created_at)} · {items.length} lines · {peso(total)}</div>
                   </div>
-                  <span className={`badge ${d.status === "posted" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  <span className={`badge ${d.status === "posted" ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-700"}`}>
                     {d.status}
                   </span>
                 </button>
@@ -156,7 +156,7 @@ export default function DeliveriesPage() {
             </button>
           )}
           {open.status === "posted" && (
-            <p className="text-center text-sm text-emerald-700 font-semibold">Posted — stockroom updated. See the movements ledger.</p>
+            <p className="text-center text-sm text-orange-700 font-semibold">Posted — stockroom updated. See the movements ledger.</p>
           )}
         </div>
       )}

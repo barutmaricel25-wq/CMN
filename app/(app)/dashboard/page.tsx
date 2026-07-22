@@ -9,7 +9,7 @@ import {
   LineChart, Line,
 } from "recharts";
 
-const BRAND = "#0e7a5f";
+const BRAND = "#c2410c";
 
 export default function Dashboard() {
   const db = useDB();
@@ -143,22 +143,22 @@ export default function Dashboard() {
       </section>
 
       <section className="grid grid-cols-2 gap-3">
-        <Link href="/reorder" className="card p-4 hover:border-emerald-500">
+        <Link href="/reorder" className="card p-4 hover:border-orange-500">
           <div className="text-2xl">⚠️</div>
           <div className="font-bold">{lowStock.length} low-stock items</div>
           <div className="text-xs text-slate-500">Tap for reorder suggestions</div>
         </Link>
-        <Link href="/orders" className="card p-4 hover:border-emerald-500">
+        <Link href="/orders" className="card p-4 hover:border-orange-500">
           <div className="text-2xl">📦</div>
           <div className="font-bold">{openOrders.length} open online orders</div>
           <div className="text-xs text-slate-500">Tap to open order board</div>
         </Link>
-        <Link href="/inventory/pull-down" className="card p-4 hover:border-emerald-500">
+        <Link href="/inventory/pull-down" className="card p-4 hover:border-orange-500">
           <div className="text-2xl">⬇️</div>
           <div className="font-bold">Pull Down stock</div>
           <div className="text-xs text-slate-500">Scan items from 2F stockroom</div>
         </Link>
-        <Link href="/attendance" className="card p-4 hover:border-emerald-500">
+        <Link href="/attendance" className="card p-4 hover:border-orange-500">
           <div className="text-2xl">⏰</div>
           <div className="font-bold">Clock in / out</div>
           <div className="text-xs text-slate-500">Selfie + GPS</div>
@@ -172,7 +172,7 @@ function Stat({ label, value, big = false }: { label: string; value: string; big
   return (
     <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5">
       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`font-extrabold tabular-nums ${big ? "text-lg text-emerald-700" : "text-sm"}`}>{value}</div>
+      <div className={`font-extrabold tabular-nums ${big ? "text-lg text-orange-700" : "text-sm"}`}>{value}</div>
     </div>
   );
 }

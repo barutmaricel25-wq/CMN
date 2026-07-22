@@ -94,7 +94,7 @@ export default function AttendancePage() {
         <p className="text-xs text-slate-400 mb-3">
           {lastPunch ? `Last: clock ${lastPunch.type} at ${fmtTime(lastPunch.created_at)}` : "No punch yet today"}
         </p>
-        <button className={`btn ${nextType === "in" ? "bg-emerald-700 text-white" : "bg-amber-600 text-white"} w-full text-lg !py-4`} disabled={busy} onClick={() => setCamera(nextType)}>
+        <button className={`btn ${nextType === "in" ? "bg-orange-700 text-white" : "bg-amber-600 text-white"} w-full text-lg !py-4`} disabled={busy} onClick={() => setCamera(nextType)}>
           📷 Clock {nextType.toUpperCase()} — take live selfie
         </button>
         <p className="text-xs text-slate-400 mt-2">Live camera only (no gallery). GPS is checked against the branch geofence ({branch.geofence_radius_m}m).</p>
@@ -124,7 +124,7 @@ export default function AttendancePage() {
                       <button className="badge bg-red-100 text-red-700" onClick={() => setReviewPin(a.id)}>⚠ review</button>
                     )}
                     {a.flagged && a.reviewed_by && <span className="badge bg-slate-200 text-slate-600">reviewed</span>}
-                    {!a.flagged && <span className="badge bg-emerald-100 text-emerald-700">✓ ok</span>}
+                    {!a.flagged && <span className="badge bg-orange-100 text-orange-700">✓ ok</span>}
                   </div>
                 );
               })}

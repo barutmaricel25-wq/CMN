@@ -23,7 +23,7 @@ export default function AdminPage() {
       <h1 className="font-bold text-lg">⚙️ Admin & Settings</h1>
       <div className="flex gap-1 overflow-x-auto">
         {(["settings", "users", "branches", "audit"] as Tab[]).map((t) => (
-          <button key={t} className={`btn !py-2 ${tab === t ? "bg-emerald-700 text-white" : "bg-white border border-slate-300"}`} onClick={() => setTab(t)}>
+          <button key={t} className={`btn !py-2 ${tab === t ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`} onClick={() => setTab(t)}>
             {t === "settings" ? "Settings" : t === "users" ? "Users & PINs" : t === "branches" ? "Branches" : "Audit log"}
           </button>
         ))}

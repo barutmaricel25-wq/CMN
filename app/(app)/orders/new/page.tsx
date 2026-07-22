@@ -152,7 +152,7 @@ function NewOrderInner() {
         <input className="input" placeholder="Courier note (optional) — e.g. Lalamove 3pm" value={courierNote} onChange={(e) => setCourierNote(e.target.value)} />
         <div className="flex justify-between items-center">
           <span className="font-bold">Total</span>
-          <span className="text-xl font-extrabold text-emerald-700 tabular-nums">{peso(total)}</span>
+          <span className="text-xl font-extrabold text-orange-700 tabular-nums">{peso(total)}</span>
         </div>
         <button
           className="btn-primary w-full text-base"

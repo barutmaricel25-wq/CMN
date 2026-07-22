@@ -50,15 +50,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-40 bg-emerald-800 text-white shadow">
+      <header className="sticky top-0 z-40 bg-orange-800 text-white shadow">
         <div className="flex items-center justify-between px-4 py-2.5 max-w-5xl mx-auto">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xl">🐾</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.jpg" alt="CMN logo" className="w-8 h-8 rounded-full border border-orange-300 shrink-0" />
             <div className="min-w-0">
-              <div className="font-bold leading-tight text-sm">CMN Pet Supply</div>
+              <div className="font-bold leading-tight text-sm">CMN Trading Corp.</div>
               {user.role === "owner" ? (
                 <select
-                  className="bg-emerald-900 text-emerald-100 text-xs rounded px-1 py-0.5 max-w-[160px]"
+                  className="bg-orange-900 text-orange-100 text-xs rounded px-1 py-0.5 max-w-[160px]"
                   value={session.branch_id ?? ""}
                   onChange={(e) => setSession({ ...session, branch_id: e.target.value })}
                 >
@@ -67,17 +68,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   ))}
                 </select>
               ) : (
-                <div className="text-emerald-200 text-xs truncate">{branch?.name}</div>
+                <div className="text-orange-200 text-xs truncate">{branch?.name}</div>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 text-right">
             <div>
               <div className="text-xs font-semibold">{user.name}</div>
-              <div className="text-[10px] uppercase text-emerald-300">{user.role}</div>
+              <div className="text-[10px] uppercase text-orange-300">{user.role}</div>
             </div>
             <button
-              className="text-xs bg-emerald-900 rounded-lg px-2 py-1.5"
+              className="text-xs bg-orange-900 rounded-lg px-2 py-1.5"
               onClick={() => { setSession(null); router.replace("/"); }}
             >
               Logout
@@ -114,7 +115,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 key={t.href}
                 href={t.href}
                 className={`flex flex-col items-center py-2 text-xs font-semibold ${
-                  active ? "text-emerald-700" : "text-slate-500"
+                  active ? "text-orange-700" : "text-slate-500"
                 }`}
               >
                 <span className="text-xl">{t.icon}</span>
@@ -123,7 +124,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
           <button
-            className={`flex flex-col items-center py-2 text-xs font-semibold ${more ? "text-emerald-700" : "text-slate-500"}`}
+            className={`flex flex-col items-center py-2 text-xs font-semibold ${more ? "text-orange-700" : "text-slate-500"}`}
             onClick={() => setMore(!more)}
           >
             <span className="text-xl">☰</span>
