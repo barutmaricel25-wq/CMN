@@ -93,6 +93,37 @@ export function pullDown(product_id: string, branch_id: string, qty: number, per
   });
 }
 
+// Quick pull: staff fetches stock from ANOTHER branch in person and puts it
+// on this branch's store floor. Recorded as an instant received transfer so
+// both branches' ledgers show exactly where the stock moved.
+export function quickPull(from_branch_id: string, to_branch_id: string, product_id: string, qty: number, performed_by: string) {
+  tx((d) => {
+    const from = d.branches.find((b) => b.id === from_branch_id);
+    const to = d.branches.find((b) => b.id === to_branch_id);
+    const now = new Date().toISOString();
+    const id = uid();
+    d.transfers.push({
+      id, from_branch_id, to_branch_id, status: "received",
+      requested_by: performed_by, sent_by: performed_by, received_by: performed_by,
+      note: "Quick pull — stock fetched in person",
+      created_at: now, sent_at: now, received_at: now,
+    });
+    d.transfer_items.push({ id: uid(), transfer_id: id, product_id, qty_requested: qty, qty_sent: qty, qty_received: qty });
+    applyMovement(d, {
+      product_id, branch_id: from_branch_id,
+      from_location: receivingLoc(d, from_branch_id), to_location: null,
+      qty, type: "transfer_out", reference_id: id, performed_by,
+      note: `brought to ${to?.name ?? to_branch_id}`,
+    });
+    applyMovement(d, {
+      product_id, branch_id: to_branch_id,
+      from_location: null, to_location: "storefront",
+      qty, type: "transfer_in", reference_id: id, performed_by,
+      note: `from ${from?.name ?? from_branch_id}`,
+    });
+  });
+}
+
 // ---------- Deliveries ----------
 export function createDelivery(branch_id: string, supplier_name: string, received_by: string, note: string): string {
   const id = uid();

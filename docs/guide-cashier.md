@@ -9,8 +9,8 @@
 4. Enter **your own PIN** — this records the sale under your name.
 5. Tap **Print** for the receipt. Mistake? Ask the manager to **Void** (needs their PIN).
 
-## Pulling stock from 2nd floor (More → ⬇️ Pull Down)
-Before carrying anything downstairs: **scan it, set qty, Confirm.** Scanning the same barcode again adds +1. That's the whole job — under 10 seconds. Never bring stock down without scanning.
+## Pulling stock (More → ⬇️ Pull Down / Get Stock)
+Before carrying anything to the store floor: pick **where it's coming from** (your 2F stockroom, or another branch like Main Branch), then **scan it, set qty, Confirm.** Scanning the same barcode again adds +1. Every entry records from-where → to-where, so never move stock without scanning. Getting stock from another branch records an instant transfer visible to both branches.
 
 ## Online orders (📦 Orders tab)
 - New order from Messenger/Viber/call: **+ New order** → pick or quick-add the customer → scan/search items → Create. Target: under 1 minute.

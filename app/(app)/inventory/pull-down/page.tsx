@@ -1,18 +1,20 @@
 "use client";
-// THE #1 FIX: record stock pulled from 2F stockroom to store floor.
-// Flow: scan → qty (defaults 1) → confirm. Under 10 seconds per item.
+// THE #1 FIX: record stock moved onto this branch's store floor.
+// Source is either this branch's 2F stockroom (classic pull-down) or ANOTHER
+// branch (quick pull, e.g. Main Branch → Unit 16) — every entry shows from → to.
 import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { pullDown } from "@/lib/actions";
+import { pullDown, quickPull } from "@/lib/actions";
 import { Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
-interface Pulled { product: Product; qty: number; at: string }
+interface Pulled { product: Product; qty: number; at: string; sourceLabel: string }
 
 export default function PullDownPage() {
   const db = useDB();
   const session = useSession();
+  const [source, setSource] = useState<string>(""); // "" = own stockroom, else branch id
   const [pending, setPending] = useState<Product | null>(null);
   const [qty, setQty] = useState(1);
   const [log, setLog] = useState<Pulled[]>([]);
@@ -21,23 +23,23 @@ export default function PullDownPage() {
 
   const branchId = session?.branch_id ?? "";
   const branch = db.branches.find((b) => b.id === branchId);
-  if (!session) return null;
+  if (!session || !branch) return null;
 
-  if (branch && branch.has_stockroom === false) {
-    return (
-      <div className="card p-6 text-center">
-        <div className="text-3xl mb-2">🏪</div>
-        <h1 className="font-bold text-lg mb-1">{branch.name} has no 2F stockroom</h1>
-        <p className="text-sm text-slate-500">
-          Deliveries and incoming transfers here go straight to the store floor, so there&apos;s nothing to pull down.
-          Need stock from another branch? Use <b>More → 🔁 Branch Transfers</b>.
-        </p>
-      </div>
-    );
-  }
+  const hasOwnStockroom = branch.has_stockroom !== false;
+  // Default source: own stockroom if it exists, otherwise force branch pick.
+  const effectiveSource = source || (hasOwnStockroom ? "own" : "");
+  const sourceBranch = effectiveSource !== "own" && effectiveSource ? db.branches.find((b) => b.id === effectiveSource) : null;
+  const sourceLabel = effectiveSource === "own" ? `${branch.name} 2F Stockroom` : sourceBranch ? sourceBranch.name : "";
+  const destLabel = `${branch.name} Store Floor`;
 
-  const srQty = (pid: string) =>
-    db.inventory.find((i) => i.branch_id === branchId && i.product_id === pid && i.location === "stockroom")?.qty ?? 0;
+  // Available qty at the selected source
+  const sourceQty = (pid: string) => {
+    if (effectiveSource === "own")
+      return db.inventory.find((i) => i.branch_id === branchId && i.product_id === pid && i.location === "stockroom")?.qty ?? 0;
+    if (!sourceBranch) return 0;
+    const loc = sourceBranch.has_stockroom === false ? "storefront" : "stockroom";
+    return db.inventory.find((i) => i.branch_id === sourceBranch.id && i.product_id === pid && i.location === loc)?.qty ?? 0;
+  };
 
   function pick(p: Product) {
     setPending(p);
@@ -47,19 +49,23 @@ export default function PullDownPage() {
   }
 
   function onScan(code: string) {
+    if (!effectiveSource) { setMsg("⚠ Pick where the stock is coming from first."); return; }
     const p = db.products.find((x) => x.active && (x.barcode === code || x.sku.toLowerCase() === code.toLowerCase()));
     if (!p) { setMsg(`❌ No product for “${code}”`); return; }
-    // Rapid re-scan of the same item = +1 and auto-confirm previous
     if (pending && pending.id === p.id) { setQty((q) => q + 1); return; }
     if (pending) confirm(pending, qty);
     pick(p);
   }
 
   function confirm(p: Product, n: number) {
-    pullDown(p.id, branchId, n, session!.user_id);
-    setLog((l) => [{ product: p, qty: n, at: new Date().toLocaleTimeString() }, ...l].slice(0, 30));
+    if (effectiveSource === "own") {
+      pullDown(p.id, branchId, n, session!.user_id);
+    } else if (sourceBranch) {
+      quickPull(sourceBranch.id, branchId, p.id, n, session!.user_id);
+    }
+    setLog((l) => [{ product: p, qty: n, at: new Date().toLocaleTimeString(), sourceLabel }, ...l].slice(0, 30));
     setPending(null);
-    setMsg(`✅ ${n} × ${p.name} → store floor`);
+    setMsg(`✅ ${n} × ${p.name} — ${sourceLabel} → ${destLabel}`);
   }
 
   const results = search.trim().length >= 2
@@ -69,17 +75,57 @@ export default function PullDownPage() {
   return (
     <div className="space-y-3">
       <div className="card p-4 bg-orange-50 border-orange-200">
-        <h1 className="font-bold text-lg">⬇️ Pull Down — 2F Stockroom → Store Floor</h1>
-        <p className="text-sm text-slate-600">Scan each item you carry downstairs. That&apos;s it — the movement is recorded with your name and time.</p>
+        <h1 className="font-bold text-lg">⬇️ Pull Down / Get Stock</h1>
+        <p className="text-sm text-slate-600">Scan each item you bring to the store floor. Who, what, from where — recorded automatically.</p>
+      </div>
+
+      {/* Source picker */}
+      <div className="card p-3">
+        <div className="label">Where is the stock coming from?</div>
+        <div className="grid grid-cols-2 gap-2">
+          {hasOwnStockroom && (
+            <button
+              className={`btn justify-start text-left ${effectiveSource === "own" ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+              onClick={() => setSource("own")}
+            >
+              🏢 2F Stockroom (here)
+            </button>
+          )}
+          {db.branches
+            .filter((b) => b.active && b.id !== branchId)
+            .map((b) => (
+              <button
+                key={b.id}
+                className={`btn justify-start text-left ${effectiveSource === b.id ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+                onClick={() => setSource(b.id)}
+              >
+                🔁 {b.name}
+              </button>
+            ))}
+        </div>
+        {effectiveSource ? (
+          <p className="text-sm font-semibold text-orange-800 mt-2">
+            📦 {sourceLabel} <span className="text-slate-400">→</span> {destLabel}
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500 mt-2">
+            {branch.name} has no 2F stockroom — choose which branch you&apos;re getting stock from.
+          </p>
+        )}
+        {sourceBranch && (
+          <p className="text-xs text-slate-500 mt-1">
+            This records an instant branch transfer — {sourceBranch.name}&apos;s stock goes down, yours goes up, visible in both ledgers.
+          </p>
+        )}
       </div>
 
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={onScan} placeholder="Scan item being pulled down…" />
+        <BarcodeInput onScan={onScan} placeholder="Scan item…" />
         <input className="input" placeholder="No barcode? Search name…" value={search} onChange={(e) => setSearch(e.target.value)} />
         {results.map((p) => (
-          <button key={p.id} className="btn-secondary w-full justify-between" onClick={() => pick(p)}>
+          <button key={p.id} className="btn-secondary w-full justify-between" onClick={() => { if (effectiveSource) pick(p); else setMsg("⚠ Pick the stock source first."); }}>
             <span className="text-sm truncate">{p.name} {p.size_variant}</span>
-            <span className="text-xs text-slate-400">2F: {srQty(p.id)}</span>
+            <span className="text-xs text-slate-400">at source: {sourceQty(p.id)}</span>
           </button>
         ))}
         {msg && <p className="text-sm font-semibold">{msg}</p>}
@@ -88,9 +134,12 @@ export default function PullDownPage() {
       {pending && (
         <div className="card p-4 border-orange-400 border-2">
           <div className="font-bold">{pending.name} <span className="text-slate-400 font-normal">{pending.size_variant}</span></div>
+          <div className="text-xs text-slate-500 mb-1">
+            {sourceLabel} <span className="text-slate-300">→</span> {destLabel}
+          </div>
           <div className="text-xs text-slate-500 mb-3">
-            In stockroom: {srQty(pending.id)}
-            {qty > srQty(pending.id) && <span className="text-red-600 font-bold ml-1">⚠ pulling more than recorded 2F stock</span>}
+            Available at source: {sourceQty(pending.id)}
+            {qty > sourceQty(pending.id) && <span className="text-red-600 font-bold ml-1">⚠ more than recorded stock at source</span>}
           </div>
           <div className="flex items-center gap-3">
             <button className="btn-secondary text-2xl !px-6" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
@@ -111,9 +160,12 @@ export default function PullDownPage() {
           <h2 className="font-bold text-sm mb-2">This session</h2>
           <ul className="divide-y divide-slate-100">
             {log.map((l, i) => (
-              <li key={i} className="py-1.5 text-sm flex justify-between">
-                <span className="truncate mr-2">{l.qty} × {l.product.name}</span>
-                <span className="text-xs text-slate-400 whitespace-nowrap">{l.at}</span>
+              <li key={i} className="py-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="truncate mr-2">{l.qty} × {l.product.name}</span>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">{l.at}</span>
+                </div>
+                <div className="text-xs text-slate-500">{l.sourceLabel} → {destLabel}</div>
               </li>
             ))}
           </ul>
