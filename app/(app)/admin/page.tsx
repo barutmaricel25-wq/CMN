@@ -72,9 +72,15 @@ function SettingsTab() {
         <label className="label">Bank details (used in reply templates)</label>
         <input className="input" defaultValue={s.bank_details} onBlur={(e) => set({ bank_details: e.target.value })} />
       </div>
-      <div>
-        <label className="label">Default low-stock threshold</label>
-        <input className="input" type="number" defaultValue={s.low_stock_default} onBlur={(e) => set({ low_stock_default: parseInt(e.target.value) || 5 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="label">Default low-stock threshold</label>
+          <input className="input" type="number" defaultValue={s.low_stock_default} onBlur={(e) => set({ low_stock_default: parseInt(e.target.value) || 5 })} />
+        </div>
+        <div>
+          <label className="label">Monthly sales target / branch (₱)</label>
+          <input className="input" inputMode="decimal" defaultValue={((s.monthly_target ?? 50000000) / 100).toFixed(0)} onBlur={(e) => set({ monthly_target: Math.max(1, Math.round(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 500000) * 100) })} />
+        </div>
       </div>
       <div className="pt-2 border-t border-slate-200">
         <button

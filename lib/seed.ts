@@ -294,6 +294,7 @@ export function buildSeed(): DB {
       bank_details: "BDO 0012-3456-7890 (CMN Trading Corp)",
       gcash_details: "GCash 0917-123-4567 (C. Nolasco)",
       low_stock_default: 5,
+      monthly_target: 50000000, // ₱500,000 per branch per month
     },
     receipt_counters,
   };

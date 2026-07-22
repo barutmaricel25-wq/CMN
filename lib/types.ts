@@ -237,6 +237,7 @@ export interface Settings {
   bank_details: string;
   gcash_details: string;
   low_stock_default: number;
+  monthly_target: number; // centavos, per-branch monthly sales goal
 }
 
 export interface DB {
