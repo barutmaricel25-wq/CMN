@@ -1,0 +1,135 @@
+"use client";
+// CSV bulk import with a column-mapping step (matches their existing Excel).
+// Template: /price-list-template.csv
+import { useState } from "react";
+import { useDB, tx } from "@/lib/store";
+import { useSession } from "@/lib/session";
+import { parseCSV, toCentavos, uid } from "@/lib/util";
+import { CATEGORIES, Category } from "@/lib/types";
+
+const FIELDS = [
+  { key: "sku", label: "SKU", required: false },
+  { key: "barcode", label: "Barcode", required: true },
+  { key: "name", label: "Product name", required: true },
+  { key: "brand", label: "Brand", required: false },
+  { key: "category", label: "Category", required: false },
+  { key: "unit", label: "Unit", required: false },
+  { key: "size_variant", label: "Size/Variant", required: false },
+  { key: "retail_price", label: "Retail price", required: true },
+  { key: "wholesale_price", label: "Wholesale price", required: false },
+  { key: "suki_price", label: "Suki price", required: false },
+  { key: "cost_price", label: "Cost price", required: false },
+  { key: "low_stock_threshold", label: "Low-stock threshold", required: false },
+] as const;
+
+export default function ImportPage() {
+  const db = useDB();
+  const session = useSession();
+  const [rows, setRows] = useState<string[][]>([]);
+  const [mapping, setMapping] = useState<Record<string, number>>({});
+  const [result, setResult] = useState("");
+
+  if (!session) return null;
+  const header = rows[0] ?? [];
+  const dataRows = rows.slice(1);
+
+  function onFile(f: File | null) {
+    if (!f) return;
+    f.text().then((text) => {
+      const parsed = parseCSV(text);
+      setRows(parsed);
+      // Auto-map by fuzzy header match
+      const m: Record<string, number> = {};
+      (parsed[0] ?? []).forEach((h, i) => {
+        const n = h.toLowerCase().replace(/[^a-z]/g, "");
+        FIELDS.forEach((f2) => {
+          const target = f2.key.replace(/_/g, "");
+          if (n.includes(target) || target.includes(n)) m[f2.key] = m[f2.key] ?? i;
+        });
+        if (/(^| )name/i.test(h)) m["name"] = m["name"] ?? i;
+        if (/retail|srp/i.test(h)) m["retail_price"] = m["retail_price"] ?? i;
+        if (/whole/i.test(h)) m["wholesale_price"] = m["wholesale_price"] ?? i;
+        if (/suki/i.test(h)) m["suki_price"] = m["suki_price"] ?? i;
+        if (/cost|puhunan/i.test(h)) m["cost_price"] = m["cost_price"] ?? i;
+      });
+      setMapping(m);
+      setResult("");
+    });
+  }
+
+  function runImport() {
+    let created = 0, updated = 0, skipped = 0;
+    tx((d) => {
+      dataRows.forEach((r) => {
+        const get = (key: string) => (mapping[key] !== undefined ? (r[mapping[key]] ?? "").trim() : "");
+        const barcode = get("barcode");
+        const name = get("name");
+        if (!barcode || !name) { skipped++; return; }
+        const catRaw = get("category").toLowerCase();
+        const category = (CATEGORIES.find((c) => c === catRaw || c.startsWith(catRaw.slice(0, 5))) ?? "other") as Category;
+        const existing = d.products.find((p) => p.barcode === barcode);
+        const patch = {
+          sku: get("sku") || (existing?.sku ?? barcode.slice(-6)),
+          barcode, name,
+          brand: get("brand") || (existing?.brand ?? ""),
+          category,
+          unit: get("unit") || (existing?.unit ?? "pc"),
+          size_variant: get("size_variant") || (existing?.size_variant ?? ""),
+          retail_price: toCentavos(get("retail_price")) || (existing?.retail_price ?? 0),
+          wholesale_price: toCentavos(get("wholesale_price")) || toCentavos(get("retail_price")) || (existing?.wholesale_price ?? 0),
+          suki_price: get("suki_price") ? toCentavos(get("suki_price")) : (existing?.suki_price ?? null),
+          cost_price: toCentavos(get("cost_price")) || (existing?.cost_price ?? 0),
+          low_stock_threshold: parseInt(get("low_stock_threshold")) || (existing?.low_stock_threshold ?? d.settings.low_stock_default),
+        };
+        if (existing) { Object.assign(existing, patch); updated++; }
+        else { d.products.push({ id: uid(), image_url: null, active: true, ...patch }); created++; }
+      });
+    });
+    setResult(`✅ Imported: ${created} new, ${updated} updated, ${skipped} skipped (missing barcode/name).`);
+  }
+
+  return (
+    <div className="space-y-3">
+      <h1 className="font-bold text-lg">📄 CSV Price List Import</h1>
+      <div className="card p-4 space-y-3">
+        <p className="text-sm text-slate-600">
+          Upload your existing Excel price list saved as CSV. Products are matched by <b>barcode</b> — existing ones are updated, new ones created.
+        </p>
+        <a href="/price-list-template.csv" download className="btn-secondary w-full">⬇️ Download CSV template</a>
+        <input type="file" accept=".csv,text/csv" className="input" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+      </div>
+
+      {rows.length > 1 && (
+        <div className="card p-4 space-y-3">
+          <h2 className="font-bold">Map your columns ({dataRows.length} rows found)</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {FIELDS.map((f) => (
+              <div key={f.key} className="flex items-center gap-2">
+                <span className="text-sm font-semibold w-40">{f.label}{f.required && <span className="text-red-600">*</span>}</span>
+                <select
+                  className="input flex-1 !py-2"
+                  value={mapping[f.key] ?? -1}
+                  onChange={(e) => setMapping({ ...mapping, [f.key]: parseInt(e.target.value) })}
+                >
+                  <option value={-1}>— not in file —</option>
+                  {header.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-slate-500">
+            Preview row 1: {dataRows[0]?.slice(0, 6).join(" | ")}
+          </div>
+          <button
+            className="btn-primary w-full"
+            disabled={mapping["barcode"] === undefined || mapping["name"] === undefined || mapping["retail_price"] === undefined}
+            onClick={runImport}
+          >
+            Import {dataRows.length} rows
+          </button>
+          {result && <p className="text-sm font-semibold text-emerald-700">{result}</p>}
+        </div>
+      )}
+    </div>
+  );
+}

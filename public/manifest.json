@@ -1,0 +1,13 @@
+{
+  "name": "CMN Pet Supply",
+  "short_name": "CMN POS",
+  "description": "CMN Trading Corporation — multi-branch pet supply management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0e7a5f",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
