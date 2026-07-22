@@ -1,5 +1,5 @@
 "use client";
-// Business Dashboard — dark analytics style: gradient KPI tiles, daily sales
+// Business Dashboard — light theme: gradient KPI tiles on white, daily sales
 // trend, bestsellers, channel/payment breakdown, inventory status, target ring.
 // Profit figures are owner-only (cost prices are sensitive).
 import Link from "next/link";
@@ -11,10 +11,10 @@ import {
   AreaChart, Area,
 } from "recharts";
 
-const GRID = "#1e2b4a";
-const TICK = "#7b8db0";
-const GREEN = "#34d399";
-const ORANGE = "#fb923c";
+const GRID = "#e2e8f0";
+const TICK = "#64748b";
+const GREEN = "#059669";
+const ORANGE = "#ea580c";
 
 export default function Dashboard() {
   const db = useDB();
@@ -108,12 +108,12 @@ export default function Dashboard() {
   const money = (v: unknown) => `₱${Number(v).toLocaleString()}`;
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-3.5rem)] bg-[#0b1428] p-4 pb-24 text-slate-100">
+    <div className="-m-4 min-h-[calc(100vh-3.5rem)] bg-slate-100 p-4 pb-24 text-slate-900">
       {/* Title bar */}
       <div className="flex items-end justify-between mb-4">
         <div>
-          <h1 className="text-xl font-extrabold italic tracking-wide text-white">BUSINESS DASHBOARD</h1>
-          <p className="text-xs text-slate-400">{branch?.name} · {new Date().toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "long", year: "numeric" })}</p>
+          <h1 className="text-xl font-extrabold italic tracking-wide text-slate-900">BUSINESS DASHBOARD</h1>
+          <p className="text-xs text-slate-500">{branch?.name} · {new Date().toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "long", year: "numeric" })}</p>
         </div>
         <span className="text-[10px] text-slate-500 text-right">Daily and monthly report<br />in a glance</span>
       </div>
@@ -154,7 +154,7 @@ export default function Dashboard() {
                 <YAxis tick={{ fontSize: 9, fill: TICK }} width={48} />
                 <Tooltip
                   formatter={money}
-                  contentStyle={{ background: "#111c33", border: `1px solid ${GRID}`, borderRadius: 8, color: "#e2e8f0" }}
+                  contentStyle={{ background: "#ffffff", border: `1px solid ${GRID}`, borderRadius: 8, color: "#0f172a" }}
                   labelFormatter={(d) => `Day ${d}`}
                 />
                 <Area type="monotone" dataKey="total" name="Sales (₱)" stroke={GREEN} strokeWidth={2} fill="url(#gTrend)" isAnimationActive={false} />
@@ -168,10 +168,10 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <Ring pct={pct} />
             <div className="text-sm">
-              <div className="text-slate-400 text-xs">Current</div>
-              <div className="font-extrabold text-white tabular-nums">{peso(monthSales)}</div>
-              <div className="text-slate-400 text-xs mt-2">Goal</div>
-              <div className="font-bold text-slate-300 tabular-nums">{peso(target)}</div>
+              <div className="text-slate-500 text-xs">Current</div>
+              <div className="font-extrabold text-slate-900 tabular-nums">{peso(monthSales)}</div>
+              <div className="text-slate-500 text-xs mt-2">Goal</div>
+              <div className="font-bold text-slate-600 tabular-nums">{peso(target)}</div>
             </div>
           </div>
         </Panel>
@@ -182,10 +182,10 @@ export default function Dashboard() {
             {best.map(({ p, qty }) => (
               <div key={p.id}>
                 <div className="flex justify-between text-xs mb-0.5">
-                  <span className="truncate mr-2 text-slate-300">{p.name} {p.size_variant}</span>
-                  <span className="font-bold text-white tabular-nums">{qty} {p.unit}</span>
+                  <span className="truncate mr-2 text-slate-600">{p.name} {p.size_variant}</span>
+                  <span className="font-bold text-slate-900 tabular-nums">{qty} {p.unit}</span>
                 </div>
-                <div className="h-2.5 rounded-full bg-[#16233f]">
+                <div className="h-2.5 rounded-full bg-slate-200">
                   <div
                     className="h-2.5 rounded-full bg-gradient-to-r from-sky-600 to-sky-400"
                     style={{ width: `${Math.max(6, (qty / bestMax) * 100)}%` }}
@@ -212,10 +212,10 @@ export default function Dashboard() {
             {chan.map((c) => (
               <div key={c.label}>
                 <div className="flex justify-between text-xs mb-0.5">
-                  <span className="text-slate-300">{c.label}</span>
-                  <span className="font-bold text-white tabular-nums">{peso(c.v)}</span>
+                  <span className="text-slate-600">{c.label}</span>
+                  <span className="font-bold text-slate-900 tabular-nums">{peso(c.v)}</span>
                 </div>
-                <div className="h-2.5 rounded-full bg-[#16233f]">
+                <div className="h-2.5 rounded-full bg-slate-200">
                   <div
                     className="h-2.5 rounded-full bg-gradient-to-r from-orange-700 to-orange-400"
                     style={{ width: `${Math.max(3, (c.v / chanMax) * 100)}%` }}
@@ -237,7 +237,7 @@ export default function Dashboard() {
                   <YAxis tick={{ fontSize: 9, fill: TICK }} width={48} />
                   <Tooltip
                     formatter={money}
-                    contentStyle={{ background: "#111c33", border: `1px solid ${GRID}`, borderRadius: 8, color: "#e2e8f0" }}
+                    contentStyle={{ background: "#ffffff", border: `1px solid ${GRID}`, borderRadius: 8, color: "#0f172a" }}
                   />
                   <Bar dataKey="total" name="Sales (₱)" fill={ORANGE} radius={[4, 4, 0, 0]} isAnimationActive={false} />
                 </BarChart>
@@ -264,7 +264,7 @@ function Kpi({ title, value, sub, icon, grad, href }: { title: string; value: st
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wide text-white/80">
         {title} <span className="text-base">{icon}</span>
       </div>
-      <div className="text-lg font-extrabold text-white tabular-nums mt-1 leading-tight">{value}</div>
+      <div className="text-lg font-extrabold text-slate-900 tabular-nums mt-1 leading-tight">{value}</div>
       {sub && <div className="text-[10px] text-white/80 font-semibold">{sub}</div>}
     </div>
   );
@@ -273,19 +273,19 @@ function Kpi({ title, value, sub, icon, grad, href }: { title: string; value: st
 
 function Navy({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-[#111c33] border border-[#1e2b4a] p-3">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="font-extrabold text-white tabular-nums text-sm mt-0.5">{value}</div>
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-3">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="font-extrabold text-slate-900 tabular-nums text-sm mt-0.5">{value}</div>
     </div>
   );
 }
 
 function Panel({ title, right, className = "", children }: { title: string; right?: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className={`rounded-2xl bg-[#111c33] border border-[#1e2b4a] p-4 ${className}`}>
+    <div className={`rounded-2xl bg-white border border-slate-200 shadow-sm p-4 ${className}`}>
       <div className="flex justify-between items-baseline mb-3 gap-2">
-        <h2 className="text-sm font-bold text-white">{title}</h2>
-        {right && <span className="text-[10px] text-slate-400 text-right">{right}</span>}
+        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+        {right && <span className="text-[10px] text-slate-500 text-right">{right}</span>}
       </div>
       {children}
     </div>
@@ -296,11 +296,11 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
   const h = max > 0 ? Math.max(8, (value / max) * 100) : 8;
   return (
     <div className="flex flex-col items-center gap-1 w-16">
-      <span className="text-sm font-extrabold text-white tabular-nums">{value}</span>
+      <span className="text-sm font-extrabold text-slate-900 tabular-nums">{value}</span>
       <div className="flex items-end h-20 w-7">
         <div className={`w-full rounded-t-md ${color}`} style={{ height: `${h}%` }} />
       </div>
-      <span className="text-[10px] text-slate-400 text-center leading-tight">{label}</span>
+      <span className="text-[10px] text-slate-500 text-center leading-tight">{label}</span>
     </div>
   );
 }
@@ -311,7 +311,7 @@ function Ring({ pct }: { pct: number }) {
   const filled = (Math.min(100, pct) / 100) * c;
   return (
     <svg width="96" height="96" viewBox="0 0 96 96" className="shrink-0">
-      <circle cx="48" cy="48" r={r} fill="none" stroke="#16233f" strokeWidth="11" />
+      <circle cx="48" cy="48" r={r} fill="none" stroke="#e2e8f0" strokeWidth="11" />
       <circle
         cx="48" cy="48" r={r} fill="none"
         stroke="url(#ringGrad)" strokeWidth="11" strokeLinecap="round"
@@ -324,16 +324,16 @@ function Ring({ pct }: { pct: number }) {
           <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
-      <text x="48" y="53" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="800">{pct}%</text>
+      <text x="48" y="53" textAnchor="middle" fill="#0f172a" fontSize="18" fontWeight="800">{pct}%</text>
     </svg>
   );
 }
 
 function Quick({ href, icon, label }: { href: string; icon: string; label: string }) {
   return (
-    <Link href={href} className="rounded-2xl bg-[#111c33] border border-[#1e2b4a] p-3 text-center hover:border-orange-500">
+    <Link href={href} className="rounded-2xl bg-white border border-slate-200 shadow-sm p-3 text-center hover:border-orange-500">
       <div className="text-xl">{icon}</div>
-      <div className="text-[11px] font-semibold text-slate-300 mt-1">{label}</div>
+      <div className="text-[11px] font-semibold text-slate-600 mt-1">{label}</div>
     </Link>
   );
 }
