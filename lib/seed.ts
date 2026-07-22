@@ -24,7 +24,7 @@ const BRANCH_DEFS = [
   ["Unit 20", "", 14.5958, 120.9812, true],
   ["Unit 10-11", "", 14.6042, 120.9825, true],
   ["Unit 04-18", "", 14.5977, 120.9891, true],
-  ["Branch 6", "", 14.6008, 120.9799, false],
+  ["Unit 16", "", 14.6008, 120.9799, false],
 ] as const;
 
 // [sku, barcode, name, brand, category, unit, size, retail, wholesale, suki, cost, threshold]
