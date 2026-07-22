@@ -32,6 +32,8 @@ export interface Branch {
   geofence_lat: number;
   geofence_lng: number;
   geofence_radius_m: number;
+  // false = no 2F stockroom: deliveries/transfers go straight to the store floor.
+  has_stockroom: boolean;
   active: boolean;
 }
 

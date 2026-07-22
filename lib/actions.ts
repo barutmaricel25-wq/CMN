@@ -8,6 +8,13 @@ import {
   PaymentMethod, OnlineOrder, OrderStatus, OnlineOrderItem, Delivery, Transfer,
 } from "./types";
 
+// Where incoming stock lands for a branch: stockroom normally, but straight
+// to the store floor for branches without a 2F stockroom.
+function receivingLoc(d: DB, branch_id: string): Location {
+  const b = d.branches.find((x) => x.id === branch_id);
+  return b && b.has_stockroom === false ? "storefront" : "stockroom";
+}
+
 function invRow(d: DB, product_id: string, branch_id: string, location: Location) {
   let row = d.inventory.find(
     (i) => i.product_id === product_id && i.branch_id === branch_id && i.location === location
@@ -128,7 +135,7 @@ export function postDelivery(delivery_id: string, user_id: string) {
       .forEach((i) => {
         applyMovement(d, {
           product_id: i.product_id, branch_id: del.branch_id,
-          from_location: null, to_location: "stockroom",
+          from_location: null, to_location: receivingLoc(d, del.branch_id),
           qty: i.qty, type: "delivery_in", reference_id: delivery_id, performed_by: user_id,
         });
       });
@@ -310,7 +317,7 @@ export function sendTransfer(transfer_id: string, qtys: Record<string, number>, 
         if (i.qty_sent > 0)
           applyMovement(d, {
             product_id: i.product_id, branch_id: t.from_branch_id,
-            from_location: "stockroom", to_location: null,
+            from_location: receivingLoc(d, t.from_branch_id), to_location: null,
             qty: i.qty_sent, type: "transfer_out", reference_id: transfer_id, performed_by: sent_by,
           });
       });
@@ -333,7 +340,7 @@ export function receiveTransfer(transfer_id: string, qtys: Record<string, number
         if (i.qty_received > 0)
           applyMovement(d, {
             product_id: i.product_id, branch_id: t.to_branch_id,
-            from_location: null, to_location: "stockroom",
+            from_location: null, to_location: receivingLoc(d, t.to_branch_id),
             qty: i.qty_received, type: "transfer_in", reference_id: transfer_id, performed_by: received_by,
           });
         if (i.qty_received !== (i.qty_sent ?? 0)) {

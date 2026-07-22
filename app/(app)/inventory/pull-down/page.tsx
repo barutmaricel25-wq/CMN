@@ -20,7 +20,21 @@ export default function PullDownPage() {
   const [search, setSearch] = useState("");
 
   const branchId = session?.branch_id ?? "";
+  const branch = db.branches.find((b) => b.id === branchId);
   if (!session) return null;
+
+  if (branch && branch.has_stockroom === false) {
+    return (
+      <div className="card p-6 text-center">
+        <div className="text-3xl mb-2">🏪</div>
+        <h1 className="font-bold text-lg mb-1">{branch.name} has no 2F stockroom</h1>
+        <p className="text-sm text-slate-500">
+          Deliveries and incoming transfers here go straight to the store floor, so there&apos;s nothing to pull down.
+          Need stock from another branch? Use <b>More → 🔁 Branch Transfers</b>.
+        </p>
+      </div>
+    );
+  }
 
   const srQty = (pid: string) =>
     db.inventory.find((i) => i.branch_id === branchId && i.product_id === pid && i.location === "stockroom")?.qty ?? 0;

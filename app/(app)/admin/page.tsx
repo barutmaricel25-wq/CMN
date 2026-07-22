@@ -201,6 +201,21 @@ function BranchesTab({ canManage }: { canManage: boolean }) {
               <div className="text-xs text-slate-500">{b.address}</div>
             </>
           )}
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 mt-2">
+            <input
+              type="checkbox"
+              className="w-4 h-4"
+              disabled={!canManage}
+              checked={b.has_stockroom !== false}
+              onChange={(e) =>
+                tx((d) => {
+                  const br = d.branches.find((x) => x.id === b.id);
+                  if (br) br.has_stockroom = e.target.checked;
+                })
+              }
+            />
+            Has 2F stockroom (unchecked: deliveries & transfers go straight to store floor)
+          </label>
           <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
             📍 {b.geofence_lat.toFixed(4)}, {b.geofence_lng.toFixed(4)} · radius{" "}
             {canManage ? (

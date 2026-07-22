@@ -17,13 +17,14 @@ function mulberry32(a: number) {
 
 const P = (n: number) => Math.round(n * 100); // pesos -> centavos
 
+// [name, address, lat, lng, has 2F stockroom]
 const BRANCH_DEFS = [
-  ["Main Branch", "123 Mabini St, Poblacion", 14.5995, 120.9842],
-  ["Branch 2 - Market", "45 Public Market Rd", 14.6021, 120.9868],
-  ["Branch 3 - Highway", "88 National Highway", 14.5958, 120.9812],
-  ["Branch 4 - Plaza", "7 Plaza Rizal", 14.6042, 120.9825],
-  ["Branch 5 - Terminal", "21 Terminal Ave", 14.5977, 120.9891],
-  ["Branch 6 - Riverside", "9 Riverside Dr", 14.6008, 120.9799],
+  ["Main Branch", "", 14.5995, 120.9842, true],
+  ["Unit 17", "", 14.6021, 120.9868, true],
+  ["Unit 20", "", 14.5958, 120.9812, true],
+  ["Unit 10-11", "", 14.6042, 120.9825, true],
+  ["Unit 04-18", "", 14.5977, 120.9891, true],
+  ["Branch 6", "", 14.6008, 120.9799, false],
 ] as const;
 
 // [sku, barcode, name, brand, category, unit, size, retail, wholesale, suki, cost, threshold]
@@ -133,6 +134,7 @@ export function buildSeed(): DB {
     geofence_lat: b[2],
     geofence_lng: b[3],
     geofence_radius_m: 120,
+    has_stockroom: b[4],
     active: true,
   }));
 
@@ -172,8 +174,13 @@ export function buildSeed(): DB {
       const lowItem = rand() < 0.12;
       const stockQty = lowItem ? Math.floor(rand() * base) : base * 2 + Math.floor(rand() * base * 3);
       const frontQty = lowItem ? Math.floor(rand() * 2) : Math.floor(base / 2) + Math.floor(rand() * base);
-      inventory.push({ id: `inv-${b.id}-${p.id}-sr`, product_id: p.id, branch_id: b.id, location: "stockroom", qty: stockQty });
-      inventory.push({ id: `inv-${b.id}-${p.id}-sf`, product_id: p.id, branch_id: b.id, location: "storefront", qty: frontQty });
+      if (b.has_stockroom) {
+        inventory.push({ id: `inv-${b.id}-${p.id}-sr`, product_id: p.id, branch_id: b.id, location: "stockroom", qty: stockQty });
+        inventory.push({ id: `inv-${b.id}-${p.id}-sf`, product_id: p.id, branch_id: b.id, location: "storefront", qty: frontQty });
+      } else {
+        // No 2F stockroom: everything lives on the store floor.
+        inventory.push({ id: `inv-${b.id}-${p.id}-sf`, product_id: p.id, branch_id: b.id, location: "storefront", qty: stockQty + frontQty });
+      }
     });
   });
 

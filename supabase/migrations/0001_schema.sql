@@ -25,6 +25,7 @@ create table branches (
   geofence_lat double precision,
   geofence_lng double precision,
   geofence_radius_m integer not null default 120,
+  has_stockroom boolean not null default true,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
