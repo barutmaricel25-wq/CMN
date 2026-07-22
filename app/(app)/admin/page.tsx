@@ -162,10 +162,45 @@ function BranchesTab({ canManage }: { canManage: boolean }) {
   const db = useDB();
   return (
     <div className="card divide-y divide-slate-100">
+      {canManage && (
+        <p className="px-4 py-2 text-xs text-slate-500 bg-slate-50">
+          Tap a name or address to edit — changes save when you leave the field and show everywhere (header, receipts, reports).
+        </p>
+      )}
       {db.branches.map((b) => (
         <div key={b.id} className="px-4 py-3">
-          <div className="text-sm font-semibold">{b.name}</div>
-          <div className="text-xs text-slate-500">{b.address}</div>
+          {canManage ? (
+            <>
+              <input
+                className="input !py-1.5 text-sm font-semibold mb-1"
+                defaultValue={b.name}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== b.name)
+                    tx((d) => {
+                      const br = d.branches.find((x) => x.id === b.id);
+                      if (br) br.name = v;
+                    });
+                }}
+              />
+              <input
+                className="input !py-1.5 text-xs"
+                placeholder="Address"
+                defaultValue={b.address}
+                onBlur={(e) =>
+                  tx((d) => {
+                    const br = d.branches.find((x) => x.id === b.id);
+                    if (br) br.address = e.target.value.trim();
+                  })
+                }
+              />
+            </>
+          ) : (
+            <>
+              <div className="text-sm font-semibold">{b.name}</div>
+              <div className="text-xs text-slate-500">{b.address}</div>
+            </>
+          )}
           <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
             📍 {b.geofence_lat.toFixed(4)}, {b.geofence_lng.toFixed(4)} · radius{" "}
             {canManage ? (
