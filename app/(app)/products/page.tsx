@@ -18,6 +18,7 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
+  const [focused, setFocused] = useState(false); // show typeahead dropdown
 
   // Prefill from global search (?q=...)
   useEffect(() => {
@@ -118,13 +119,40 @@ export default function ProductsPage() {
           placeholder="🔍 Scan barcode or type to check price"
           autoFocus={false}
         />
-        <div className="flex gap-2">
-          <input className="input flex-1" placeholder="Search name / brand / SKU…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select className="input w-44" value={cat} onChange={(e) => setCat(e.target.value)}>
-            <option value="">All categories</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="relative">
+          <input
+            className="input w-full"
+            placeholder="Search name / brand / SKU…"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setFocused(true); }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+          />
+          {/* Typeahead: possible matches while typing */}
+          {focused && q.trim().length >= 1 && rows.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-30 card max-h-72 overflow-y-auto">
+              {rows.slice(0, 8).map((p) => (
+                <button
+                  key={p.id}
+                  className="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-2"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { setViewing(p); setFocused(false); }}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold truncate">{brandName(p)} <span className="text-slate-400 font-normal">{p.size_variant}</span></span>
+                    <span className="block text-[11px] text-slate-500">{p.category} · {p.sku}</span>
+                  </span>
+                  <span className="font-bold text-sm text-orange-700 tabular-nums whitespace-nowrap">{peso(p.retail_price)}</span>
+                </button>
+              ))}
+              {rows.length > 8 && <div className="px-3 py-1.5 text-[11px] text-slate-400">+{rows.length - 8} more — keep typing to narrow</div>}
+            </div>
+          )}
         </div>
+        <select className="input w-full" value={cat} onChange={(e) => setCat(e.target.value)}>
+          <option value="">All categories</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       <div className="text-xs text-slate-500 px-1">
