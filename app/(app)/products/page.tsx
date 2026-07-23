@@ -1,12 +1,12 @@
 "use client";
 // Product catalog & price list (replaces the Excel file):
 // CRUD, three price tiers, CSV import, printable per-category price list.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveProduct } from "@/lib/actions";
-import { peso, toCentavos, uid } from "@/lib/util";
+import { peso, toCentavos, uid, brandName } from "@/lib/util";
 import { CATEGORIES, Category, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
@@ -17,6 +17,12 @@ export default function ProductsPage() {
   const [cat, setCat] = useState("");
   const [editing, setEditing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
+
+  // Prefill from global search (?q=...)
+  useEffect(() => {
+    const qq = new URLSearchParams(window.location.search).get("q");
+    if (qq) setQ(qq);
+  }, []);
 
   const rows = useMemo(
     () =>
@@ -62,7 +68,7 @@ export default function ProductsPage() {
                 <tbody>
                   {items.map((p) => (
                     <tr key={p.id} className="border-b border-slate-200">
-                      <td className="py-0.5">{p.brand} {p.name}</td>
+                      <td className="py-0.5">{brandName(p)}</td>
                       <td>{p.size_variant}</td>
                       <td className="text-right tabular-nums">{peso(p.retail_price)}</td>
                       <td className="text-right tabular-nums">{peso(p.wholesale_price)}</td>
@@ -118,7 +124,7 @@ export default function ProductsPage() {
           <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 disabled:hover:bg-white" disabled={!canEdit} onClick={() => setEditing({ ...p })}>
             <div className="flex justify-between items-start gap-2">
               <div className="min-w-0">
-                <div className="text-sm font-semibold truncate">{p.brand} {p.name}</div>
+                <div className="text-sm font-semibold truncate">{brandName(p)}</div>
                 <div className="text-xs text-slate-500">{p.category} · {p.size_variant} · {p.sku} · {p.barcode}</div>
               </div>
               <div className="text-right whitespace-nowrap text-xs">

@@ -20,6 +20,12 @@ export function toCentavos(s: string | number): number {
   return Math.round(n * 100);
 }
 
+// "Brand Name" display without doubling when the name already starts with the brand.
+export function brandName(p: { brand: string; name: string }): string {
+  if (!p.brand || p.name.toLowerCase().startsWith(p.brand.toLowerCase())) return p.name;
+  return `${p.brand} ${p.name}`;
+}
+
 const MANILA = "Asia/Manila";
 
 export function manilaNow(): Date {

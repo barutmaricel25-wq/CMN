@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { downloadCSV } from "@/lib/util";
+import { downloadCSV, brandName } from "@/lib/util";
 
 export default function ReorderPage() {
   const db = useDB();
@@ -73,7 +73,7 @@ export default function ReorderPage() {
               <tr key={i}>
                 <td className="px-3 py-2 text-xs">{r.branch}</td>
                 <td className="px-3 py-2">
-                  <div className="font-semibold">{r.brand} {r.product}</div>
+                  <div className="font-semibold">{brandName({ brand: r.brand, name: r.product })}</div>
                   <div className="text-xs text-slate-500">{r.size}</div>
                 </td>
                 <td className={`px-3 py-2 text-center font-bold tabular-nums ${r.current === 0 ? "text-red-600" : ""}`}>{r.current}</td>

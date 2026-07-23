@@ -1,6 +1,6 @@
 "use client";
 // Customers: suki & wholesaler records with order history and metrics.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { peso, fmtDate, uid } from "@/lib/util";
@@ -14,6 +14,12 @@ export default function CustomersPage() {
   const [type, setType] = useState("");
   const [editing, setEditing] = useState<Customer | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // Prefill from global search (?q=...)
+  useEffect(() => {
+    const qq = new URLSearchParams(window.location.search).get("q");
+    if (qq) setQ(qq);
+  }, []);
 
   if (!session) return null;
 
