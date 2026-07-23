@@ -16,6 +16,7 @@ export default function ProductsPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
   const [editing, setEditing] = useState<Product | null>(null);
+  const [viewing, setViewing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
 
   // Prefill from global search (?q=...)
@@ -109,9 +110,16 @@ export default function ProductsPage() {
       </div>
 
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={setQ} placeholder="Scan barcode to find product" autoFocus={false} />
+        <BarcodeInput
+          onScan={(code) => {
+            const p = db.products.find((x) => x.active && (x.barcode === code || x.sku.toLowerCase() === code.toLowerCase()));
+            if (p) setViewing(p); else setQ(code);
+          }}
+          placeholder="🔍 Scan barcode or type to check price"
+          autoFocus={false}
+        />
         <div className="flex gap-2">
-          <input className="input flex-1" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input flex-1" placeholder="Search name / brand / SKU…" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input w-44" value={cat} onChange={(e) => setCat(e.target.value)}>
             <option value="">All categories</option>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -125,7 +133,7 @@ export default function ProductsPage() {
       </div>
       <div className="card divide-y divide-slate-100">
         {rows.slice(0, 150).map((p) => (
-          <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 disabled:hover:bg-white" disabled={!canEdit} onClick={() => setEditing({ ...p })}>
+          <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-slate-50" onClick={() => setViewing(p)}>
             <div className="flex justify-between items-start gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-semibold truncate">{brandName(p)}</div>
@@ -141,6 +149,15 @@ export default function ProductsPage() {
         {rows.length === 0 && <p className="text-center text-sm text-slate-400 py-8">No products</p>}
       </div>
 
+      {viewing && (
+        <PriceDetail
+          p={viewing}
+          canEdit={canEdit}
+          onClose={() => setViewing(null)}
+          onEdit={() => { setEditing({ ...viewing }); setViewing(null); }}
+        />
+      )}
+
       {editing && (
         <ProductEditor
           product={editing}
@@ -148,6 +165,36 @@ export default function ProductsPage() {
           onSave={(p) => { saveProduct(p, session.user_id); setEditing(null); }}
         />
       )}
+    </div>
+  );
+}
+
+// Big price view: tap a product to check its Retail / Wholesale / Suki price.
+function PriceDetail({ p, canEdit, onClose, onEdit }: { p: Product; canEdit: boolean; onClose: () => void; onEdit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="text-xl font-bold">{brandName(p)}</div>
+        <div className="text-sm text-slate-500 mb-4">{p.size_variant} · {p.category} · {p.sku} · {p.barcode}</div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-orange-700">Retail</div>
+            <div className="text-2xl font-extrabold text-orange-800 tabular-nums leading-tight mt-1">{peso(p.retail_price)}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Wholesale</div>
+            <div className="text-2xl font-extrabold text-slate-800 tabular-nums leading-tight mt-1">{peso(p.wholesale_price)}</div>
+          </div>
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Suki</div>
+            <div className="text-2xl font-extrabold text-amber-800 tabular-nums leading-tight mt-1">{p.suki_price ? peso(p.suki_price) : "—"}</div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button className="btn-ghost flex-1" onClick={onClose}>Close</button>
+          {canEdit && <button className="btn-primary flex-1" onClick={onEdit}>✏️ Edit</button>}
+        </div>
+      </div>
     </div>
   );
 }

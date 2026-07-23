@@ -10,7 +10,6 @@ import { brandName } from "@/lib/util";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "🏠" },
-  { href: "/price-check", label: "Price Check", icon: "💵" },
   { href: "/pos", label: "POS (Cashier)", icon: "🛒" },
   { href: "/orders", label: "Online Orders", icon: "📦" },
   { href: "/inventory", label: "Stock", icon: "🏬" },
@@ -29,7 +28,7 @@ const NAV = [
 
 const TABS = [
   { href: "/dashboard", label: "Home", icon: "🏠" },
-  { href: "/price-check", label: "Price", icon: "💵" },
+  { href: "/products", label: "Prices", icon: "🏷️" },
   { href: "/pos", label: "POS", icon: "🛒" },
   { href: "/inventory", label: "Stock", icon: "🏬" },
 ];
