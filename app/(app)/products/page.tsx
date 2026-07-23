@@ -119,8 +119,12 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      <div className="text-xs text-slate-500 px-1">
+        {rows.length} product{rows.length !== 1 ? "s" : ""}
+        {rows.length > 150 && " — showing first 150, search or filter to narrow"}
+      </div>
       <div className="card divide-y divide-slate-100">
-        {rows.map((p) => (
+        {rows.slice(0, 150).map((p) => (
           <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 disabled:hover:bg-white" disabled={!canEdit} onClick={() => setEditing({ ...p })}>
             <div className="flex justify-between items-start gap-2">
               <div className="min-w-0">

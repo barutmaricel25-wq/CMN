@@ -1,9 +1,17 @@
-// Deterministic demo seed: 6 branches, users per role, ~60 products,
-// customers of each type, plus 14 days of generated sales/movement history.
+// Deterministic demo seed: 6 branches, users per role, the real CMN product
+// catalog (imported from products-data.json), customers of each type, plus
+// generated sales/movement history so the dashboards have content.
 import {
   DB, Branch, User, Product, Customer, InventoryRow, StockMovement, Sale, SaleItem,
-  OnlineOrder, Category, CustomerType, Attendance,
+  OnlineOrder, CustomerType, Attendance,
 } from "./types";
+import PRODUCTS_RAW from "./products-data.json";
+
+// Compact record shape from products-data.json (generated from the CMN Excel).
+interface RawProduct {
+  s: string; b: string; n: string; br: string; c: string;
+  u: string; sz: string; r: number; w: number; k: number; co: number;
+}
 
 // Small seeded PRNG so every fresh demo looks the same.
 function mulberry32(a: number) {
@@ -27,88 +35,14 @@ const BRANCH_DEFS = [
   ["Unit 16", "", 14.6008, 120.9799, false],
 ] as const;
 
-// [sku, barcode, name, brand, category, unit, size, retail, wholesale, suki, cost, threshold]
-type Row = [string, string, string, string, Category, string, string, number, number, number | null, number, number];
-const PRODUCT_DEFS: Row[] = [
-  // dry food
-  ["DF001", "4800011230011", "Adult Beef & Vegetables Dry Dog Food", "Pedigree", "dry food", "sack", "10kg", 1650, 1520, 1580, 1380, 5],
-  ["DF002", "4800011230028", "Adult Beef & Vegetables Dry Dog Food", "Pedigree", "dry food", "pack", "3kg", 545, 495, 520, 440, 10],
-  ["DF003", "4800011230035", "Puppy Chicken & Milk Dry Food", "Pedigree", "dry food", "pack", "3kg", 575, 525, 550, 465, 10],
-  ["DF004", "4806530190017", "Value Meal Beef & Liver Dog Food", "Vitality", "dry food", "sack", "20kg", 2150, 1980, 2050, 1800, 4],
-  ["DF005", "4806530190024", "Classic Pro Adult Dog Food", "Vitality", "dry food", "sack", "15kg", 2380, 2200, 2280, 1990, 4],
-  ["DF006", "8850477010013", "SmartHeart Power Pack Adult", "SmartHeart", "dry food", "sack", "20kg", 2480, 2300, 2380, 2080, 4],
-  ["DF007", "4809015430012", "Nutri Chunks Premium Adult Chicken", "Nutri Chunks", "dry food", "sack", "8kg", 1150, 1050, 1100, 940, 6],
-  ["DF008", "4806529210014", "Aozi Organic Adult Dog Food", "Aozi", "dry food", "sack", "8kg", 1680, 1550, 1600, 1400, 4],
-  ["DF009", "7896029033012", "Monello Premium Adult Dog", "Monello", "dry food", "sack", "15kg", 2650, 2450, 2550, 2200, 3],
-  ["DF010", "4800888120014", "Beefpro Adult Maintenance", "Beefpro", "dry food", "sack", "20kg", 1980, 1820, 1900, 1650, 4],
-  ["DF011", "8850477020012", "Me-O Persian Adult Cat Food", "Me-O", "dry food", "pack", "1.1kg", 385, 350, 365, 305, 12],
-  ["DF012", "8850477020029", "Me-O Tuna Adult Cat Food", "Me-O", "dry food", "sack", "7kg", 1550, 1430, 1480, 1280, 5],
-  ["DF013", "4800011560019", "Whiskas Ocean Fish Adult", "Whiskas", "dry food", "pack", "1.2kg", 420, 385, 400, 335, 12],
-  ["DF014", "4806529310011", "Special Cat Premium Adult", "Special Cat", "dry food", "sack", "8kg", 1180, 1080, 1130, 960, 6],
-  ["DF015", "8850477030011", "SmartHeart Cat Seafood", "SmartHeart", "dry food", "pack", "1.2kg", 335, 305, 320, 265, 12],
-  ["DF016", "4809015440011", "Cuchi Gourmet Adult Cat", "Cuchi", "dry food", "pack", "1kg", 295, 268, 280, 232, 12],
-  // wet food
-  ["WF001", "4800011340017", "Chicken & Liver Chunks in Gravy Can", "Pedigree", "wet food", "can", "400g", 92, 82, 87, 70, 24],
-  ["WF002", "4800011340024", "Puppy Pouch Chicken in Gravy", "Pedigree", "wet food", "pouch", "130g", 42, 36, 39, 29, 48],
-  ["WF003", "4800011570016", "Whiskas Tuna Can", "Whiskas", "wet food", "can", "400g", 98, 88, 93, 75, 24],
-  ["WF004", "4800011570023", "Whiskas Tuna Pouch", "Whiskas", "wet food", "pouch", "80g", 32, 27, 30, 22, 48],
-  ["WF005", "4806529220013", "Aozi Pure Organic Wet Dog Can", "Aozi", "wet food", "can", "430g", 105, 95, 100, 82, 24],
-  ["WF006", "8853301004305", "Moochie Kitten Mousse Tuna", "Moochie", "wet food", "pouch", "70g", 35, 30, 33, 24, 48],
-  ["WF007", "9556158010014", "Princess Wet Cat Food Sardine", "Princess", "wet food", "can", "400g", 68, 60, 64, 50, 24],
-  ["WF008", "8850477040010", "Me-O Tuna & Chicken Pouch", "Me-O", "wet food", "pouch", "80g", 30, 26, 28, 21, 48],
-  // treats
-  ["TR001", "8852397001013", "Jerhigh Chicken Stick", "Jerhigh", "treats", "pack", "70g", 95, 85, 90, 72, 15],
-  ["TR002", "8852397001020", "Jerhigh Milky Stick", "Jerhigh", "treats", "pack", "70g", 95, 85, 90, 72, 15],
-  ["TR003", "4800011350016", "Dentastix Medium 3s", "Pedigree", "treats", "pack", "77g", 85, 75, 80, 64, 15],
-  ["TR004", "8850477050019", "Me-O Creamy Treats Tuna 4s", "Me-O", "treats", "pack", "60g", 65, 57, 61, 47, 20],
-  ["TR005", "4806529410018", "Papi Dog Biscuit Round", "Papi", "treats", "tub", "500g", 145, 130, 138, 112, 10],
-  ["TR006", "8858781100017", "Temptations Seafood Medley", "Temptations", "treats", "pack", "85g", 165, 150, 158, 132, 10],
-  // litter & accessories
-  ["LT001", "8888300870015", "Clumping Cat Litter Lavender", "Kit Cat", "litter & accessories", "bag", "10L", 385, 350, 368, 305, 8],
-  ["LT002", "8888300870022", "Clumping Cat Litter Charcoal", "Kit Cat", "litter & accessories", "bag", "10L", 385, 350, 368, 305, 8],
-  ["LT003", "4806529510015", "Cat Litter Pan with Rim (Large)", "Petto", "litter & accessories", "pc", "Large", 320, 285, 300, 240, 5],
-  ["LT004", "4806529510022", "Litter Scoop Plastic", "Petto", "litter & accessories", "pc", "Std", 45, 38, 42, 28, 10],
-  // grooming/cleaning
-  ["GR001", "4806528880018", "Madre de Cacao Dog & Cat Shampoo", "Saint Roche", "grooming/cleaning", "bottle", "1050ml", 480, 440, 460, 385, 8],
-  ["GR002", "4806528880025", "Premium Organic Shampoo Sweet Embrace", "Saint Roche", "grooming/cleaning", "bottle", "628ml", 330, 300, 315, 260, 8],
-  ["GR003", "4809014550012", "Papi Shampoo with Conditioner", "Papi", "grooming/cleaning", "bottle", "500ml", 165, 148, 156, 125, 10],
-  ["GR004", "4806529610013", "Slicker Brush Medium", "Petto", "grooming/cleaning", "pc", "M", 130, 112, 120, 90, 6],
-  ["GR005", "4806529610020", "Nail Clipper with Guard", "Petto", "grooming/cleaning", "pc", "Std", 110, 95, 102, 75, 6],
-  ["GR006", "4806529610037", "Pet Wipes Antibacterial 80s", "Petto", "grooming/cleaning", "pack", "80 sheets", 120, 105, 112, 85, 10],
-  // health
-  ["HL001", "4809013340019", "LC-Vit Multivitamins Syrup", "LC-Vit", "health", "bottle", "120ml", 155, 140, 148, 118, 10],
-  ["HL002", "4809013340026", "Coat Shine Syrup", "LC-Vit", "health", "bottle", "120ml", 165, 148, 156, 125, 10],
-  ["HL003", "8853301220011", "Goat's Milk Replacer for Puppies", "PetLac", "health", "tin", "300g", 425, 390, 408, 340, 6],
-  ["HL004", "8853301220028", "Goat's Milk Replacer for Kittens", "PetLac", "health", "tin", "300g", 425, 390, 408, 340, 6],
-  ["HL005", "3661103049944", "Frontline Plus for Dogs 10-20kg", "Frontline", "health", "pipette", "1 dose", 495, 460, 478, 400, 8],
-  ["HL006", "4809013350018", "Heartgard Plus Chewable Medium", "Heartgard", "health", "chew", "1 dose", 320, 295, 308, 255, 8],
-  ["HL007", "4809013360017", "Doxycycline 100mg Capsule (Vet)", "VetRx", "health", "capsule", "100mg", 18, 15, 16, 11, 50],
-  // carriers & cages
-  ["CC001", "4806529710010", "Pet Carrier Plastic (Medium)", "Petto", "carriers & cages", "pc", "M", 850, 780, 815, 660, 3],
-  ["CC002", "4806529710027", "Foldable Wire Cage (Large)", "Petto", "carriers & cages", "pc", "L", 1450, 1320, 1380, 1120, 3],
-  ["CC003", "4806529710034", "Foldable Wire Cage (XL)", "Petto", "carriers & cages", "pc", "XL", 1950, 1780, 1860, 1520, 2],
-  // collars/leash/harness
-  ["CL001", "4806529810017", "Nylon Collar with Bell (Small)", "Petto", "collars/leash/harness", "pc", "S", 75, 64, 70, 48, 10],
-  ["CL002", "4806529810024", "Nylon Leash 1.5m (Medium)", "Petto", "collars/leash/harness", "pc", "M", 120, 105, 112, 82, 10],
-  ["CL003", "4806529810031", "Body Harness with Leash (Medium)", "Petto", "collars/leash/harness", "set", "M", 210, 185, 198, 150, 8],
-  ["CL004", "4806529810048", "Retractable Leash 5m", "Petto", "collars/leash/harness", "pc", "5m", 340, 305, 322, 250, 5],
-  // toys & scratchers
-  ["TY001", "4806529910014", "Rubber Bone Chew Toy", "Petto", "toys & scratchers", "pc", "M", 95, 82, 88, 62, 10],
-  ["TY002", "4806529910021", "Cat Teaser Wand Feather", "Petto", "toys & scratchers", "pc", "Std", 65, 55, 60, 40, 10],
-  ["TY003", "4806529910038", "Corrugated Cat Scratcher Board", "Petto", "toys & scratchers", "pc", "Std", 150, 132, 141, 105, 8],
-  ["TY004", "4806529910045", "Tennis Ball 2-pack for Dogs", "Petto", "toys & scratchers", "pack", "2 pcs", 85, 72, 78, 55, 10],
-  // bowls & feeding
-  ["BW001", "4806530010011", "Stainless Bowl (Medium)", "Petto", "bowls & feeding", "pc", "M", 95, 82, 88, 62, 12],
-  ["BW002", "4806530010028", "Double Diner Plastic Bowl", "Petto", "bowls & feeding", "pc", "Std", 145, 128, 136, 102, 8],
-  ["BW003", "4806530010035", "Gravity Water Dispenser 3.8L", "Petto", "bowls & feeding", "pc", "3.8L", 380, 345, 362, 285, 5],
-  ["BW004", "4806530010042", "Slow Feeder Bowl", "Petto", "bowls & feeding", "pc", "M", 180, 160, 170, 130, 6],
-  // cologne
-  ["CG001", "4809014660018", "Puppy Cologne Baby Powder", "Happy Pets", "cologne", "bottle", "125ml", 130, 115, 122, 92, 10],
-  ["CG002", "4809014660025", "Pet Cologne Bubble Gum", "Happy Pets", "cologne", "bottle", "125ml", 130, 115, 122, 92, 10],
-  // other
-  ["OT001", "4806530110018", "Training Pads 10s", "Petto", "other", "pack", "10 pcs", 220, 198, 209, 165, 8],
-  ["OT002", "4806530110025", "Poop Bags Roll 3-pack", "Petto", "other", "pack", "3 rolls", 95, 82, 88, 60, 10],
-];
+// Default low-stock threshold by unit type (bulky = lower, small = higher).
+function thresholdFor(unit: string): number {
+  const u = unit.toLowerCase();
+  if (u.includes('sack') || u.includes('bag')) return 3;
+  if (u.includes('can') || u.includes('pouch')) return 12;
+  if (u.includes('piece') || u.includes('pc')) return 6;
+  return 6;
+}
 
 const CUSTOMER_DEFS: [string, string, CustomerType, string, string][] = [
   ["Aling Nena Sari-Sari Store", "09171234501", "wholesaler", "Blk 4 Lot 2, Poblacion", "Orders weekly, sacks only"],
@@ -153,11 +87,12 @@ export function buildSeed(): DB {
     });
   });
 
-  const products: Product[] = PRODUCT_DEFS.map((r, i) => ({
+  const products: Product[] = (PRODUCTS_RAW as RawProduct[]).map((r, i) => ({
     id: `p${i + 1}`,
-    sku: r[0], barcode: r[1], name: r[2], brand: r[3], category: r[4], unit: r[5], size_variant: r[6],
-    retail_price: P(r[7]), wholesale_price: P(r[8]), suki_price: r[9] === null ? null : P(r[9]),
-    cost_price: P(r[10]), low_stock_threshold: r[11], image_url: null, active: true,
+    sku: r.s, barcode: r.b, name: r.n, brand: r.br, category: r.c as Product["category"],
+    unit: r.u, size_variant: r.sz,
+    retail_price: r.r, wholesale_price: r.w, suki_price: r.k, cost_price: r.co,
+    low_stock_threshold: thresholdFor(r.u), image_url: null, active: true,
   }));
 
   const customers: Customer[] = CUSTOMER_DEFS.map((c, i) => ({

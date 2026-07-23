@@ -85,7 +85,7 @@ export default function InventoryPage() {
           <div className="text-center">Total</div>
         </div>
         <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
-          {rows.map(({ p, sr, sf, total, low }) => (
+          {rows.slice(0, 150).map(({ p, sr, sf, total, low }) => (
             <div key={p.id} className="grid grid-cols-[1fr_3.5rem_3.5rem_3.5rem] gap-1 px-3 py-2 items-center">
               <div className="min-w-0">
                 <div className="text-sm font-semibold truncate">{p.name}</div>
@@ -106,7 +106,10 @@ export default function InventoryPage() {
           {rows.length === 0 && <p className="text-center text-slate-400 py-8 text-sm">No products match</p>}
         </div>
       </div>
-      <p className="text-xs text-slate-400 text-center">Tap a 2F/Floor number to adjust (manager PIN + reason required).</p>
+      <p className="text-xs text-slate-400 text-center">
+        {rows.length > 150 ? `Showing 150 of ${rows.length} — search or filter to narrow. ` : ""}
+        Tap a 2F/Floor number to adjust (manager PIN + reason required).
+      </p>
 
       {adjust && !pinned && (
         <PinModal
