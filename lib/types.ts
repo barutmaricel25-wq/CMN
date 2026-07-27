@@ -12,6 +12,15 @@ export type MovementType =
   | "adjustment"
   | "return";
 export type CustomerType = "retail" | "suki" | "wholesaler";
+
+// Display labels — "retail" tier is shown to users as "Online Reseller".
+export const CUSTOMER_TYPE_LABEL: Record<CustomerType, string> = {
+  retail: "Online Reseller",
+  suki: "Suki",
+  wholesaler: "Wholesaler",
+};
+
+export type PaymentTerms = "cash" | "pdc";
 export type PaymentMethod = "cash" | "bank_transfer" | "gcash" | "other";
 export type SaleChannel = "onsite" | "online";
 export type OrderStatus =
@@ -44,6 +53,17 @@ export interface User {
   branch_id: string | null; // null for owner
   pin: string; // demo mode: plain 4-digit PIN. Real schema stores pin_hash.
   active: boolean;
+  // HR / employee record
+  contact_number: string;
+  address: string;
+  sss_id: string;
+  philhealth_id: string;
+  pagibig_id: string;
+  birthday: string;    // YYYY-MM-DD
+  hired_date: string;  // YYYY-MM-DD
+  salary_rate: number; // monthly, centavos
+  daily_rate: number;  // centavos
+  hourly_rate: number; // centavos
 }
 
 export const CATEGORIES = [
@@ -71,10 +91,13 @@ export interface Product {
   category: Category;
   unit: string;
   size_variant: string;
-  retail_price: number;
-  wholesale_price: number;
-  suki_price: number | null;
-  cost_price: number;
+  // Price columns mirroring the CMN price list, in centavos:
+  cost_price: number;          // UNIT PRICE (owner-only)
+  ord_ws_price: number | null; // ORD W/S
+  wholesale_price: number;     // WHOLE SALE
+  suki_price: number | null;   // LAST PRICE (the suki tier)
+  retail_price: number;        // SELLING PRICE
+  per_kilo: number | null;     // KILO (price per kilo reference)
   low_stock_threshold: number;
   image_url: string | null;
   active: boolean;
@@ -103,11 +126,25 @@ export interface StockMovement {
   created_at: string;
 }
 
+// COD or post-dated cheque terms counted from the delivery date.
+export type DeliveryTerms = "cod" | "pdc30" | "pdc45" | "pdc60";
+export const TERMS_DAYS: Record<DeliveryTerms, number> = { cod: 0, pdc30: 30, pdc45: 45, pdc60: 60 };
+export const TERMS_LABEL: Record<DeliveryTerms, string> = {
+  cod: "COD (Cash on Delivery)",
+  pdc30: "PDC 30 days",
+  pdc45: "PDC 45 days",
+  pdc60: "PDC 60 days",
+};
+
 export interface Delivery {
   id: string;
   branch_id: string;
-  supplier_name: string;
-  delivery_date: string;
+  supplier_name: string;      // company name
+  supplier_contact: string;   // phone / contact number
+  supplier_address: string;
+  delivery_date: string;      // YYYY-MM-DD
+  terms: DeliveryTerms;
+  due_date: string | null;    // PDC due date (delivery date + terms days)
   received_by: string;
   status: "draft" | "posted";
   note: string | null;
@@ -153,6 +190,7 @@ export interface Customer {
   address: string;
   notes: string;
   active: boolean;
+  payment_terms: PaymentTerms; // suki/wholesaler may pay by PDC
 }
 
 export interface Sale {
@@ -220,6 +258,72 @@ export interface Attendance {
   created_at: string;
 }
 
+// ---------- Expenses ----------
+export const EXPENSE_CATEGORIES = [
+  "store rental",
+  "electricity",
+  "water",
+  "daily expenses",
+  "other",
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export interface Expense {
+  id: string;
+  branch_id: string;
+  category: ExpenseCategory;
+  amount: number; // centavos
+  note: string;
+  date: string;   // YYYY-MM-DD
+  recorded_by: string;
+  created_at: string;
+}
+
+// ---------- Post-dated cheques ----------
+// Issued BY us to a supplier (payable) or received FROM a suki/wholesaler (receivable).
+export type PDCDirection = "payable" | "receivable";
+export type PDCStatus = "pending" | "cleared" | "bounced" | "cancelled";
+
+export interface PDCCheck {
+  id: string;
+  direction: PDCDirection;
+  party_name: string;            // company / customer name
+  customer_id: string | null;
+  delivery_id: string | null;
+  branch_id: string;
+  check_number: string;
+  bank: string;
+  amount: number;                // centavos
+  date_issued: string;           // date of payment / when cheque was handed over
+  due_date: string;              // encashment date
+  status: PDCStatus;
+  note: string;
+  created_at: string;
+}
+
+// ---------- Payroll ----------
+export interface PayrollRecord {
+  id: string;
+  user_id: string;
+  branch_id: string;
+  period_start: string;
+  period_end: string;
+  daily_rate: number;       // snapshot at time of run, centavos
+  hourly_rate: number;      // centavos
+  days_worked: number;
+  days_absent: number;
+  overtime_hours: number;
+  holiday_days: number;     // worked on a holiday
+  days_late: number;
+  late_minutes: number;
+  days_off: number;
+  advance_salary: number;   // centavos, deducted
+  total_pay: number;        // centavos, computed
+  note: string;
+  created_by: string;
+  created_at: string;
+}
+
 export interface AuditLog {
   id: string;
   user_id: string;
@@ -258,6 +362,9 @@ export interface DB {
   sale_items: SaleItem[];
   online_orders: OnlineOrder[];
   attendance: Attendance[];
+  expenses: Expense[];
+  pdc_checks: PDCCheck[];
+  payroll: PayrollRecord[];
   audit_log: AuditLog[];
   settings: Settings;
   receipt_counters: Record<string, number>; // branch_id -> last receipt no

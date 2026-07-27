@@ -8,6 +8,7 @@ import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { createOnlineOrder, priceFor } from "@/lib/actions";
 import { peso, uid } from "@/lib/util";
+import { blankCustomer } from "@/lib/factories";
 import { CustomerType, OnlineOrderItem, OrderSource, PaymentMethod } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
@@ -98,7 +99,7 @@ function NewOrderInner() {
               disabled={!qaName.trim()}
               onClick={() => {
                 const id = uid();
-                tx((d) => d.customers.push({ id, name: qaName.trim(), phone: qaPhone.trim(), type: qaType, address: "", notes: "", active: true }));
+                tx((d) => d.customers.push({ ...blankCustomer(), id, name: qaName.trim(), phone: qaPhone.trim(), type: qaType }));
                 pickCustomer(id);
                 setQuickAdd(false); setQaName(""); setQaPhone("");
               }}

@@ -5,7 +5,8 @@ import { tx, getDB } from "./store";
 import { uid } from "./util";
 import {
   DB, Location, MovementType, Product, Sale, SaleItem, CustomerType,
-  PaymentMethod, OnlineOrder, OrderStatus, OnlineOrderItem, Delivery, Transfer,
+  PaymentMethod, OnlineOrder, OrderStatus, OnlineOrderItem,
+  Expense, PDCCheck, PDCStatus, PayrollRecord, Delivery, DeliveryTerms, TERMS_DAYS,
 } from "./types";
 
 // Where incoming stock lands for a branch: stockroom normally, but straight
@@ -125,17 +126,37 @@ export function quickPull(from_branch_id: string, to_branch_id: string, product_
 }
 
 // ---------- Deliveries ----------
-export function createDelivery(branch_id: string, supplier_name: string, received_by: string, note: string): string {
+export function createDelivery(args: {
+  branch_id: string; supplier_name: string; supplier_contact: string; supplier_address: string;
+  delivery_date: string; terms: DeliveryTerms; received_by: string; note: string;
+}): string {
   const id = uid();
+  const days = TERMS_DAYS[args.terms];
   tx((d) => {
     d.deliveries.push({
-      id, branch_id, supplier_name,
-      delivery_date: new Date().toISOString(),
-      received_by, status: "draft", note: note || null,
+      id, branch_id: args.branch_id,
+      supplier_name: args.supplier_name,
+      supplier_contact: args.supplier_contact,
+      supplier_address: args.supplier_address,
+      delivery_date: args.delivery_date,
+      terms: args.terms,
+      due_date: days > 0 ? dueDateFrom(args.delivery_date, days) : null,
+      received_by: args.received_by, status: "draft", note: args.note || null,
       created_at: new Date().toISOString(),
     });
   });
   return id;
+}
+
+// Update supplier details / terms on an existing draft (recomputes the due date).
+export function updateDelivery(id: string, patch: Partial<Pick<Delivery, "supplier_name" | "supplier_contact" | "supplier_address" | "delivery_date" | "terms" | "note">>) {
+  tx((d) => {
+    const del = d.deliveries.find((x) => x.id === id);
+    if (!del) return;
+    Object.assign(del, patch);
+    const days = TERMS_DAYS[del.terms];
+    del.due_date = days > 0 ? dueDateFrom(del.delivery_date, days) : null;
+  });
 }
 
 export function addDeliveryItem(delivery_id: string, product_id: string, qty: number, unit_cost: number) {
@@ -402,6 +423,78 @@ export function clockPunch(args: {
       reviewed_by: null,
       created_at: new Date().toISOString(),
     });
+  });
+}
+
+// ---------- Expenses ----------
+export function saveExpense(e: Expense) {
+  tx((d) => {
+    const i = d.expenses.findIndex((x) => x.id === e.id);
+    if (i >= 0) d.expenses[i] = e;
+    else d.expenses.push(e);
+    audit(d, e.recorded_by, i >= 0 ? "update" : "create", "expense", e.id, undefined, { category: e.category, amount: e.amount });
+  });
+}
+
+export function deleteExpense(id: string, by: string) {
+  tx((d) => {
+    const e = d.expenses.find((x) => x.id === id);
+    d.expenses = d.expenses.filter((x) => x.id !== id);
+    if (e) audit(d, by, "delete", "expense", id, e, undefined);
+  });
+}
+
+// ---------- Post-dated cheques ----------
+export function savePDC(c: PDCCheck, by: string) {
+  tx((d) => {
+    const i = d.pdc_checks.findIndex((x) => x.id === c.id);
+    if (i >= 0) d.pdc_checks[i] = c;
+    else d.pdc_checks.push(c);
+    audit(d, by, i >= 0 ? "update" : "create", "pdc_check", c.id, undefined, { party: c.party_name, amount: c.amount, due: c.due_date });
+  });
+}
+
+export function setPDCStatus(id: string, status: PDCStatus, by: string) {
+  tx((d) => {
+    const c = d.pdc_checks.find((x) => x.id === id);
+    if (!c) return;
+    const before = c.status;
+    c.status = status;
+    audit(d, by, "pdc_status", "pdc_check", id, { status: before }, { status });
+  });
+}
+
+// Due date = delivery/issue date + terms days.
+export function dueDateFrom(dateISO: string, days: number): string {
+  const d = new Date(dateISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("en-CA");
+}
+
+// ---------- Payroll ----------
+// Total = (daily rate × days worked) + OT + holiday premium − late − advance.
+export function computePayroll(r: Omit<PayrollRecord, "total_pay">): number {
+  const base = r.daily_rate * r.days_worked;
+  const ot = Math.round(r.hourly_rate * 1.25 * r.overtime_hours);
+  const holiday = r.daily_rate * r.holiday_days; // premium on top of the day's pay
+  const lateDeduction = Math.round((r.hourly_rate / 60) * r.late_minutes);
+  return Math.max(0, base + ot + holiday - lateDeduction - r.advance_salary);
+}
+
+export function savePayroll(r: PayrollRecord, by: string) {
+  tx((d) => {
+    const i = d.payroll.findIndex((x) => x.id === r.id);
+    if (i >= 0) d.payroll[i] = r;
+    else d.payroll.push(r);
+    audit(d, by, i >= 0 ? "update" : "create", "payroll", r.id, undefined, { user: r.user_id, total: r.total_pay });
+  });
+}
+
+export function deletePayroll(id: string, by: string) {
+  tx((d) => {
+    const r = d.payroll.find((x) => x.id === id);
+    d.payroll = d.payroll.filter((x) => x.id !== id);
+    if (r) audit(d, by, "delete", "payroll", id, r, undefined);
   });
 }
 

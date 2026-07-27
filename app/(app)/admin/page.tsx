@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { fmtDateTime, uid } from "@/lib/util";
+import { fmtDateTime, toCentavos } from "@/lib/util";
+import { blankUser } from "@/lib/factories";
 import { Role, User } from "@/lib/types";
 
 type Tab = "settings" | "users" | "branches" | "audit";
@@ -100,7 +101,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
   return (
     <div className="space-y-3">
       {canManage && (
-        <button className="btn-primary w-full" onClick={() => setEditing({ id: uid(), name: "", role: "staff", branch_id: db.branches[0].id, pin: "0000", active: true })}>
+        <button className="btn-primary w-full" onClick={() => setEditing(blankUser(db.branches[0].id))}>
           + Add user
         </button>
       )}
@@ -117,7 +118,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
       </div>
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div className="card w-full max-w-md p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-md p-5 space-y-2 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold">User</h3>
             <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             <div className="flex gap-2">
@@ -138,6 +139,60 @@ function UsersTab({ canManage }: { canManage: boolean }) {
                 <input type="checkbox" className="w-5 h-5" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} /> Active
               </label>
             </div>
+
+            {/* Contact & address */}
+            <div className="pt-2 border-t border-slate-200">
+              <div className="label">Contact</div>
+              <div className="grid grid-cols-2 gap-2">
+                <input className="input" placeholder="Contact number" inputMode="tel" value={editing.contact_number} onChange={(e) => setEditing({ ...editing, contact_number: e.target.value })} />
+                <input className="input" type="date" title="Birthday" value={editing.birthday} onChange={(e) => setEditing({ ...editing, birthday: e.target.value })} />
+              </div>
+              <input className="input mt-2" placeholder="Address" value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
+            </div>
+
+            {/* Government IDs */}
+            <div className="pt-2 border-t border-slate-200">
+              <div className="label">Government IDs</div>
+              <div className="space-y-2">
+                <input className="input" placeholder="SSS ID" value={editing.sss_id} onChange={(e) => setEditing({ ...editing, sss_id: e.target.value })} />
+                <input className="input" placeholder="PhilHealth ID" value={editing.philhealth_id} onChange={(e) => setEditing({ ...editing, philhealth_id: e.target.value })} />
+                <input className="input" placeholder="Pag-IBIG ID" value={editing.pagibig_id} onChange={(e) => setEditing({ ...editing, pagibig_id: e.target.value })} />
+              </div>
+            </div>
+
+            {/* Employment & rates */}
+            <div className="pt-2 border-t border-slate-200">
+              <div className="label">Employment & pay rates</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label !text-[10px]">Hired date</label>
+                  <input className="input" type="date" value={editing.hired_date} onChange={(e) => setEditing({ ...editing, hired_date: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label !text-[10px]">Salary rate ₱ / month</label>
+                  <input className="input" inputMode="decimal" defaultValue={(editing.salary_rate / 100).toFixed(2)}
+                    onBlur={(e) => {
+                      const monthly = toCentavos(e.target.value);
+                      setEditing({
+                        ...editing, salary_rate: monthly,
+                        daily_rate: editing.daily_rate || Math.round(monthly / 26),
+                        hourly_rate: editing.hourly_rate || Math.round(monthly / 26 / 8),
+                      });
+                    }} />
+                </div>
+                <div>
+                  <label className="label !text-[10px]">Daily rate ₱</label>
+                  <input className="input" inputMode="decimal" defaultValue={(editing.daily_rate / 100).toFixed(2)}
+                    onBlur={(e) => setEditing({ ...editing, daily_rate: toCentavos(e.target.value) })} />
+                </div>
+                <div>
+                  <label className="label !text-[10px]">Hourly rate ₱</label>
+                  <input className="input" inputMode="decimal" defaultValue={(editing.hourly_rate / 100).toFixed(2)}
+                    onBlur={(e) => setEditing({ ...editing, hourly_rate: toCentavos(e.target.value) })} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-1">
               <button className="btn-ghost flex-1" onClick={() => setEditing(null)}>Cancel</button>
               <button className="btn-primary flex-1" disabled={!editing.name.trim() || editing.pin.length !== 4}

@@ -105,6 +105,13 @@ export default function Dashboard() {
     total: sum(completed.filter((s) => s.branch_id === b.id && manilaDateKey(s.created_at) === today)) / 100,
   }));
 
+  // Cheques due today/tomorrow or already overdue (owner sees all branches).
+  const tomorrowKey = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); })();
+  const pdcDue = db.pdc_checks
+    .filter((c) => c.status === "pending")
+    .filter((c) => isOwner || c.branch_id === myBranch)
+    .filter((c) => c.due_date <= tomorrowKey).length;
+
   const money = (v: unknown) => `₱${Number(v).toLocaleString()}`;
 
   return (
@@ -129,6 +136,29 @@ export default function Dashboard() {
         )}
         <Kpi title="Low / Out of Stock" value={`${lowStock} / ${outStock}`} icon="⚠️" grad="from-rose-500 to-red-700" href="/reorder" />
       </div>
+
+      {/* Owner: company-wide totals across all branches */}
+      {isOwner && (
+        <div className="rounded-2xl bg-gradient-to-br from-orange-700 to-orange-900 p-4 mb-3 shadow-lg">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-orange-100 mb-2">
+            👑 All branches combined ({db.branches.length} stores)
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-white">
+            <div>
+              <div className="text-[10px] uppercase text-orange-200 font-bold">Today</div>
+              <div className="text-xl font-extrabold tabular-nums leading-tight">{peso(allToday)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase text-orange-200 font-bold">This week</div>
+              <div className="text-xl font-extrabold tabular-nums leading-tight">{peso(allWeek)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase text-orange-200 font-bold">This month</div>
+              <div className="text-xl font-extrabold tabular-nums leading-tight">{peso(allMonth)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navy stat tiles: this month */}
       <div className="grid grid-cols-3 gap-3 mb-3">
@@ -250,9 +280,9 @@ export default function Dashboard() {
       {/* Quick actions */}
       <div className="grid grid-cols-4 gap-3 mt-3">
         <Quick href="/inventory/pull-down" icon="⬇️" label="Pull Down" />
-        <Quick href="/orders" icon="📦" label="Orders" />
+        <Quick href="/expenses" icon="💸" label="Expenses" />
+        <Quick href="/pdc" icon="🧾" label={pdcDue > 0 ? `PDC (${pdcDue} due)` : "PDC Due"} />
         <Quick href="/reports" icon="📈" label="Reports" />
-        <Quick href="/attendance" icon="⏰" label="Clock in/out" />
       </div>
     </div>
   );

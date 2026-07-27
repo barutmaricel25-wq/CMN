@@ -7,23 +7,31 @@ import { useEffect, useRef, useState } from "react";
 import { useDB } from "@/lib/store";
 import { setSession, useSession } from "@/lib/session";
 import { brandName } from "@/lib/util";
+import { Role } from "@/lib/types";
 
-const NAV = [
+// `roles` limits who sees the link; omit to show it to everyone.
+type NavItem = { href: string; label: string; icon: string; roles?: Role[] };
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "🏠" },
   { href: "/pos", label: "POS (Cashier)", icon: "🛒" },
   { href: "/orders", label: "Online Orders", icon: "📦" },
   { href: "/inventory", label: "Stock", icon: "🏬" },
   { href: "/inventory/pull-down", label: "Pull Down / Get Stock", icon: "⬇️" },
-  { href: "/inventory/deliveries", label: "Receive Delivery", icon: "🚚" },
+  // Receiving deliveries is owner-only.
+  { href: "/inventory/deliveries", label: "Receive Delivery", icon: "🚚", roles: ["owner"] },
   { href: "/inventory/movements", label: "Movements Ledger", icon: "📒" },
   { href: "/inventory/count", label: "Stock Count", icon: "🔢" },
   { href: "/transfers", label: "Branch Transfers", icon: "🔁" },
   { href: "/reorder", label: "Reorder Suggestions", icon: "🧾" },
   { href: "/products", label: "Products & Prices", icon: "🏷️" },
   { href: "/customers", label: "Customers", icon: "👥" },
+  { href: "/expenses", label: "Expenses", icon: "💸" },
+  { href: "/pdc", label: "PDC Due Dates", icon: "🧾" },
+  { href: "/payroll", label: "Payroll", icon: "🧑‍💼" },
   { href: "/reports", label: "Reports & End-of-Day", icon: "📈" },
   { href: "/attendance", label: "Time & Attendance", icon: "⏰" },
-  { href: "/admin", label: "Admin & Settings", icon: "⚙️" },
+  { href: "/admin", label: "Admin & Settings", icon: "⚙️", roles: ["owner", "manager"] },
 ];
 
 const TABS = [
@@ -53,9 +61,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const branch = db.branches.find((b) => b.id === session.branch_id);
   if (!user) return null;
 
+  const visibleNav = NAV.filter((l) => !l.roles || l.roles.includes(user.role));
+
   const navLinks = (compact: boolean) => (
     <nav className={compact ? "p-2" : "p-3"}>
-      {NAV.map((l) => {
+      {visibleNav.map((l) => {
         const active = pathname === l.href;
         return (
           <Link
@@ -98,7 +108,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <GlobalSearch />
+          <GlobalSearch role={user.role} />
 
           <div className="flex items-center gap-2 text-right shrink-0">
             <div className="hidden sm:block">
@@ -180,7 +190,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 }
 
 // Global search: products (name/brand/barcode/SKU), customers, and screens.
-function GlobalSearch() {
+function GlobalSearch({ role }: { role?: Role }) {
   const db = useDB();
   const router = useRouter();
   const pathname = usePathname();
@@ -198,7 +208,7 @@ function GlobalSearch() {
   }, []);
 
   const term = q.trim().toLowerCase();
-  const screens = term.length >= 2 ? NAV.filter((l) => l.label.toLowerCase().includes(term)).slice(0, 3) : [];
+  const screens = term.length >= 2 ? NAV.filter((l) => (!l.roles || (role && l.roles.includes(role))) && l.label.toLowerCase().includes(term)).slice(0, 3) : [];
   const products = term.length >= 2
     ? db.products.filter((p) =>
         p.active &&

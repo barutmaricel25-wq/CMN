@@ -3,7 +3,7 @@
 // generated sales/movement history so the dashboards have content.
 import {
   DB, Branch, User, Product, Customer, InventoryRow, StockMovement, Sale, SaleItem,
-  OnlineOrder, CustomerType, Attendance,
+  OnlineOrder, CustomerType, Attendance, Expense, PDCCheck,
 } from "./types";
 import PRODUCTS_RAW from "./products-data.json";
 
@@ -11,6 +11,7 @@ import PRODUCTS_RAW from "./products-data.json";
 interface RawProduct {
   s: string; b: string; n: string; br: string; c: string;
   u: string; sz: string; r: number; w: number; k: number; co: number;
+  ow: number; kg: number;
 }
 
 // Small seeded PRNG so every fresh demo looks the same.
@@ -72,18 +73,39 @@ export function buildSeed(): DB {
     active: true,
   }));
 
+  // HR defaults so payroll has numbers to work with (editable in Admin).
+  const hr = (monthly: number, i: number, seedIdx: number) => ({
+    contact_number: `09${(17 + (seedIdx % 9))}${String(1000000 + seedIdx * 13579).slice(0, 7)}`,
+    address: `${branches[i]?.name ?? "Main Branch"} area`,
+    sss_id: `34-${String(1000000 + seedIdx * 7919).slice(0, 7)}-${seedIdx % 10}`,
+    philhealth_id: `12-${String(100000000 + seedIdx * 3571).slice(0, 9)}-${seedIdx % 10}`,
+    pagibig_id: `1211-${String(1000 + seedIdx * 7).slice(0, 4)}-${String(2000 + seedIdx * 11).slice(0, 4)}`,
+    birthday: `19${80 + (seedIdx % 18)}-0${1 + (seedIdx % 9)}-1${seedIdx % 9}`,
+    hired_date: `20${15 + (seedIdx % 10)}-0${1 + (seedIdx % 9)}-0${1 + (seedIdx % 8)}`,
+    salary_rate: P(monthly),
+    daily_rate: P(Math.round(monthly / 26)),
+    hourly_rate: P(Math.round(monthly / 26 / 8)),
+  });
+
   const users: User[] = [
-    { id: "u-owner", name: "Carmen M. Nolasco", role: "owner", branch_id: null, pin: "9999", active: true },
+    { id: "u-owner", name: "Carmen M. Nolasco", role: "owner", branch_id: null, pin: "9999", active: true, ...hr(0, 0, 1) },
   ];
   const managerNames = ["Rosa Vergara", "Dante Cruz", "Fe Ramos", "Nilo Bautista", "Tess Aquino", "Marlon Diaz"];
   const staffNames = [
     ["Joy Salazar", "Rico Ferrer"], ["Mika Ocampo", "Aldo Reyes"], ["Bea Torres", "Caloy Uy"],
     ["Dina Flores", "Erwin Go"], ["Faye Mateo", "Gino Silang"], ["Hana Perez", "Ivan Cruz"],
   ];
+  let hrIdx = 2;
   branches.forEach((b, i) => {
-    users.push({ id: `u-mgr-${i + 1}`, name: managerNames[i], role: "manager", branch_id: b.id, pin: String(1111 * (i + 1)).padStart(4, "0").slice(0, 4), active: true });
+    users.push({
+      id: `u-mgr-${i + 1}`, name: managerNames[i], role: "manager", branch_id: b.id,
+      pin: String(1111 * (i + 1)).padStart(4, "0").slice(0, 4), active: true, ...hr(22000, i, hrIdx++),
+    });
     staffNames[i].forEach((n, j) => {
-      users.push({ id: `u-stf-${i + 1}-${j + 1}`, name: n, role: "staff", branch_id: b.id, pin: `${i + 1}${j + 1}${i + 1}${j + 1}`, active: true });
+      users.push({
+        id: `u-stf-${i + 1}-${j + 1}`, name: n, role: "staff", branch_id: b.id,
+        pin: `${i + 1}${j + 1}${i + 1}${j + 1}`, active: true, ...hr(16000, i, hrIdx++),
+      });
     });
   });
 
@@ -91,12 +113,15 @@ export function buildSeed(): DB {
     id: `p${i + 1}`,
     sku: r.s, barcode: r.b, name: r.n, brand: r.br, category: r.c as Product["category"],
     unit: r.u, size_variant: r.sz,
-    retail_price: r.r, wholesale_price: r.w, suki_price: r.k, cost_price: r.co,
+    cost_price: r.co, ord_ws_price: r.ow || null, wholesale_price: r.w,
+    suki_price: r.k, retail_price: r.r, per_kilo: r.kg || null,
     low_stock_threshold: thresholdFor(r.u), image_url: null, active: true,
   }));
 
   const customers: Customer[] = CUSTOMER_DEFS.map((c, i) => ({
     id: `c${i + 1}`, name: c[0], phone: c[1], type: c[2], address: c[3], notes: c[4], active: true,
+    // Wholesalers commonly pay by post-dated cheque; others pay cash.
+    payment_terms: c[2] === "wholesaler" ? "pdc" : "cash",
   }));
 
   // Inventory: stockroom + storefront rows per product per branch.
@@ -220,6 +245,64 @@ export function buildSeed(): DB {
   });
   attendance.forEach((a) => { a.flagged = !a.within_geofence; });
 
+  // Sample monthly expenses per branch so the Expenses screen has content.
+  const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  const expenses: Expense[] = [];
+  branches.forEach((b, bi) => {
+    const monthStart = new Date(now); monthStart.setDate(3);
+    expenses.push({
+      id: `exp-${b.id}-rent`, branch_id: b.id, category: "store rental",
+      amount: P(25000 + bi * 2000), note: "Monthly stall rental", date: dayKey(monthStart),
+      recorded_by: `u-mgr-${bi + 1}`, created_at: monthStart.toISOString(),
+    });
+    const elec = new Date(now); elec.setDate(8);
+    expenses.push({
+      id: `exp-${b.id}-elec`, branch_id: b.id, category: "electricity",
+      amount: P(4200 + bi * 300), note: "Meralco bill", date: dayKey(elec),
+      recorded_by: `u-mgr-${bi + 1}`, created_at: elec.toISOString(),
+    });
+    const water = new Date(now); water.setDate(9);
+    expenses.push({
+      id: `exp-${b.id}-water`, branch_id: b.id, category: "water",
+      amount: P(650 + bi * 50), note: "Maynilad", date: dayKey(water),
+      recorded_by: `u-mgr-${bi + 1}`, created_at: water.toISOString(),
+    });
+    for (let d = 0; d < 3; d++) {
+      const day = new Date(now - d * 86400000);
+      expenses.push({
+        id: `exp-${b.id}-daily-${d}`, branch_id: b.id, category: "daily expenses",
+        amount: P(200 + Math.floor(rand() * 600)), note: ["Load & load card", "Cleaning supplies", "Snacks / merienda"][d],
+        date: dayKey(day), recorded_by: `u-stf-${bi + 1}-1`, created_at: day.toISOString(),
+      });
+    }
+  });
+
+  // Sample post-dated cheques: payables to suppliers + receivables from wholesalers.
+  const addDays = (base: number, n: number) => dayKey(new Date(base + n * 86400000));
+  const pdc_checks: PDCCheck[] = [
+    {
+      id: "pdc1", direction: "payable", party_name: "Nutri Distributors Inc.",
+      customer_id: null, delivery_id: null, branch_id: "b1",
+      check_number: "0012345", bank: "BDO", amount: P(85000),
+      date_issued: addDays(now, -28), due_date: addDays(now, 1),
+      status: "pending", note: "PDC 30 days for October delivery", created_at: new Date(now - 28 * 86400000).toISOString(),
+    },
+    {
+      id: "pdc2", direction: "payable", party_name: "Pet Star Trading",
+      customer_id: null, delivery_id: null, branch_id: "b1",
+      check_number: "0012399", bank: "Metrobank", amount: P(46500),
+      date_issued: addDays(now, -40), due_date: addDays(now, 5),
+      status: "pending", note: "PDC 45 days", created_at: new Date(now - 40 * 86400000).toISOString(),
+    },
+    {
+      id: "pdc3", direction: "receivable", party_name: "Aling Nena Sari-Sari Store",
+      customer_id: "c1", delivery_id: null, branch_id: "b1",
+      check_number: "0455121", bank: "Landbank", amount: P(18400),
+      date_issued: addDays(now, -10), due_date: addDays(now, 3),
+      status: "pending", note: "Suki payment by cheque", created_at: new Date(now - 10 * 86400000).toISOString(),
+    },
+  ];
+
   return {
     seeded_at: new Date(now).toISOString(),
     branches, users, products, customers, inventory,
@@ -227,6 +310,7 @@ export function buildSeed(): DB {
     deliveries: [], delivery_items: [],
     transfers: [], transfer_items: [],
     sales, sale_items, online_orders, attendance,
+    expenses, pdc_checks, payroll: [],
     audit_log: [],
     settings: {
       receipt_header: "CMN Trading Corporation",

@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { parseCSV, toCentavos, uid } from "@/lib/util";
+import { parseCSV, toCentavos } from "@/lib/util";
+import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, Category } from "@/lib/types";
 
 const FIELDS = [
@@ -82,7 +83,7 @@ export default function ImportPage() {
           low_stock_threshold: parseInt(get("low_stock_threshold")) || (existing?.low_stock_threshold ?? d.settings.low_stock_default),
         };
         if (existing) { Object.assign(existing, patch); updated++; }
-        else { d.products.push({ id: uid(), image_url: null, active: true, ...patch }); created++; }
+        else { d.products.push({ ...blankProduct(d.settings.low_stock_default), ...patch }); created++; }
       });
     });
     setResult(`✅ Imported: ${created} new, ${updated} updated, ${skipped} skipped (missing barcode/name).`);

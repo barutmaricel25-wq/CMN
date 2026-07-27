@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveProduct } from "@/lib/actions";
-import { peso, toCentavos, uid, brandName } from "@/lib/util";
+import { peso, toCentavos, brandName } from "@/lib/util";
+import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, Category, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
@@ -97,11 +98,7 @@ export default function ProductsPage() {
             <button
               className="btn-primary !py-2"
               onClick={() =>
-                setEditing({
-                  id: uid(), sku: "", barcode: "", name: "", brand: "", category: "dry food",
-                  unit: "pc", size_variant: "", retail_price: 0, wholesale_price: 0, suki_price: null,
-                  cost_price: 0, low_stock_threshold: db.settings.low_stock_default, image_url: null, active: true,
-                })
+                setEditing(blankProduct(db.settings.low_stock_default))
               }
             >
               + Add
@@ -204,19 +201,18 @@ function PriceDetail({ p, canEdit, onClose, onEdit }: { p: Product; canEdit: boo
       <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-xl font-bold">{brandName(p)}</div>
         <div className="text-sm text-slate-500 mb-4">{p.size_variant} · {p.category} · {p.sku} · {p.barcode}</div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-orange-700">Retail</div>
-            <div className="text-2xl font-extrabold text-orange-800 tabular-nums leading-tight mt-1">{peso(p.retail_price)}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Wholesale</div>
-            <div className="text-2xl font-extrabold text-slate-800 tabular-nums leading-tight mt-1">{peso(p.wholesale_price)}</div>
-          </div>
-          <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Suki</div>
-            <div className="text-2xl font-extrabold text-amber-800 tabular-nums leading-tight mt-1">{p.suki_price ? peso(p.suki_price) : "—"}</div>
-          </div>
+
+        {/* Selling price is the headline; the full price list follows. */}
+        <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3 text-center mb-2">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-orange-700">Selling price (Retail)</div>
+          <div className="text-3xl font-extrabold text-orange-800 tabular-nums leading-tight mt-1">{peso(p.retail_price)}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <PriceBox label="ORD W/S" value={p.ord_ws_price ? peso(p.ord_ws_price) : "—"} />
+          <PriceBox label="Whole sale" value={peso(p.wholesale_price)} />
+          <PriceBox label="Last price (Suki)" value={p.suki_price ? peso(p.suki_price) : "—"} tone="amber" />
+          <PriceBox label="Per kilo" value={p.per_kilo ? peso(p.per_kilo) : "—"} />
+          {canEdit && <PriceBox label="Unit price (cost)" value={peso(p.cost_price)} tone="slate" wide />}
         </div>
         <div className="flex gap-2 mt-4">
           <button className="btn-ghost flex-1" onClick={onClose}>Close</button>
@@ -227,16 +223,31 @@ function PriceDetail({ p, canEdit, onClose, onEdit }: { p: Product; canEdit: boo
   );
 }
 
+function PriceBox({ label, value, tone = "white", wide = false }: { label: string; value: string; tone?: "white" | "amber" | "slate"; wide?: boolean }) {
+  const cls =
+    tone === "amber" ? "bg-amber-50 border-amber-200 text-amber-800"
+      : tone === "slate" ? "bg-slate-100 border-slate-300 text-slate-700"
+      : "bg-white border-slate-200 text-slate-800";
+  return (
+    <div className={`rounded-xl border p-2.5 ${cls} ${wide ? "col-span-2" : ""}`}>
+      <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">{label}</div>
+      <div className="text-lg font-extrabold tabular-nums leading-tight">{value}</div>
+    </div>
+  );
+}
+
 function ProductEditor({ product, onClose, onSave }: { product: Product; onClose: () => void; onSave: (p: Product) => void }) {
   const [p, setP] = useState(product);
   const set = (k: keyof Product, v: unknown) => setP({ ...p, [k]: v });
-  const priceField = (label: string, key: "retail_price" | "wholesale_price" | "suki_price" | "cost_price") => (
+  type PriceKey = "retail_price" | "wholesale_price" | "suki_price" | "cost_price" | "ord_ws_price" | "per_kilo";
+  const NULLABLE: PriceKey[] = ["suki_price", "ord_ws_price", "per_kilo"];
+  const priceField = (label: string, key: PriceKey) => (
     <div>
       <label className="label">{label}</label>
       <input
         className="input" inputMode="decimal"
         defaultValue={p[key] === null ? "" : ((p[key] as number) / 100).toFixed(2)}
-        onBlur={(e) => set(key, key === "suki_price" && !e.target.value.trim() ? null : toCentavos(e.target.value))}
+        onBlur={(e) => set(key, NULLABLE.includes(key) && !e.target.value.trim() ? null : toCentavos(e.target.value))}
       />
     </div>
   );
@@ -261,10 +272,12 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
           <div><label className="label">Size/variant</label><input className="input" value={p.size_variant} onChange={(e) => set("size_variant", e.target.value)} /></div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {priceField("Retail price ₱", "retail_price")}
-          {priceField("Wholesale price ₱", "wholesale_price")}
-          {priceField("Suki price ₱ (blank = retail)", "suki_price")}
-          {priceField("Cost price ₱", "cost_price")}
+          {priceField("Unit price (cost) ₱", "cost_price")}
+          {priceField("ORD W/S ₱", "ord_ws_price")}
+          {priceField("Whole sale ₱", "wholesale_price")}
+          {priceField("Last price (Suki) ₱", "suki_price")}
+          {priceField("Selling price (Retail) ₱", "retail_price")}
+          {priceField("Per kilo ₱", "per_kilo")}
         </div>
         <div className="grid grid-cols-2 gap-2 items-end">
           <div>
