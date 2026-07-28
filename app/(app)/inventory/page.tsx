@@ -113,7 +113,7 @@ export default function InventoryPage() {
       </div>
 
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={setQ} placeholder="Scan barcode to filter" autoFocus={false} />
+        <BarcodeInput onScan={setQ} placeholder="Type barcode / SKU, then Enter" />
         <input className="input" placeholder="Search name / brand…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">All categories</option>

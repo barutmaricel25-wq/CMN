@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveProduct } from "@/lib/actions";
-import { peso, toCentavos, brandName } from "@/lib/util";
+import { peso, toCentavos, brandName, compareByBrand } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, Category, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
@@ -40,7 +40,8 @@ export default function ProductsPage() {
             p.barcode === q ||
             p.sku.toLowerCase() === q.toLowerCase()
         )
-        .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)),
+        // Alphabetical by brand, then product name (blank brands last).
+        .sort(compareByBrand),
     [db.products, q, cat]
   );
 
@@ -113,8 +114,7 @@ export default function ProductsPage() {
             const p = db.products.find((x) => x.active && (x.barcode === code || x.sku.toLowerCase() === code.toLowerCase()));
             if (p) setViewing(p); else setQ(code);
           }}
-          placeholder="🔍 Scan barcode or type to check price"
-          autoFocus={false}
+          placeholder="Type barcode / SKU, then Enter"
         />
         <div className="relative">
           <input

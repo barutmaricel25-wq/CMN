@@ -22,6 +22,8 @@ export default function Dashboard() {
   if (!session) return null;
   const user = db.users.find((u) => u.id === session.user_id)!;
   const isOwner = user.role === "owner";
+  // Owner and branch managers both see company-wide sales; staff do not.
+  const seesAllBranches = user.role !== "staff";
   const today = manilaDateKey();
   const monthPrefix = today.slice(0, 7);
   const myBranch = session.branch_id!;
@@ -109,7 +111,7 @@ export default function Dashboard() {
   const tomorrowKey = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); })();
   const pdcDue = db.pdc_checks
     .filter((c) => c.status === "pending")
-    .filter((c) => isOwner || c.branch_id === myBranch)
+    .filter((c) => seesAllBranches || c.branch_id === myBranch)
     .filter((c) => c.due_date <= tomorrowKey).length;
 
   const money = (v: unknown) => `₱${Number(v).toLocaleString()}`;
@@ -137,11 +139,11 @@ export default function Dashboard() {
         <Kpi title="Low / Out of Stock" value={`${lowStock} / ${outStock}`} icon="⚠️" grad="from-rose-500 to-red-700" href="/reorder" />
       </div>
 
-      {/* Owner: company-wide totals across all branches */}
-      {isOwner && (
+      {/* Company-wide totals across all branches (owner + managers) */}
+      {seesAllBranches && (
         <div className="rounded-2xl bg-gradient-to-br from-orange-700 to-orange-900 p-4 mb-3 shadow-lg">
           <div className="text-[11px] font-bold uppercase tracking-wide text-orange-100 mb-2">
-            👑 All branches combined ({db.branches.length} stores)
+            🏢 All branches combined ({db.branches.length} stores)
           </div>
           <div className="grid grid-cols-3 gap-3 text-white">
             <div>
@@ -256,8 +258,8 @@ export default function Dashboard() {
           </div>
         </Panel>
 
-        {/* Owner: all-branch comparison */}
-        {isOwner && (
+        {/* All-branch comparison (owner + managers) */}
+        {seesAllBranches && (
           <Panel title="Today by Branch (all branches)" right={`Today ${peso(allToday)} · Week ${peso(allWeek)} · Month ${peso(allMonth)}`} className="lg:col-span-2">
             <div className="h-44">
               <ResponsiveContainer>

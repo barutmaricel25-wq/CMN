@@ -209,7 +209,7 @@ export default function DeliveriesPage() {
 
           {open.status === "draft" && (
             <div className="card p-3 space-y-2">
-              <BarcodeInput onScan={addByScan} placeholder="Scan delivered item (+1 each scan)" />
+              <BarcodeInput onScan={addByScan} placeholder="Type barcode / SKU, then Enter" />
               <input className="input" placeholder="Or search name…" value={search} onChange={(e) => setSearch(e.target.value)} />
               {results.map((p) => (
                 <button key={p.id} className="btn-secondary w-full justify-between" onClick={() => { addDeliveryItem(open.id, p.id, 1, p.cost_price); setSearch(""); }}>

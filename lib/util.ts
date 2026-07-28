@@ -26,6 +26,27 @@ export function brandName(p: { brand: string; name: string }): string {
   return `${p.brand} ${p.name}`;
 }
 
+// Alphabetical-by-brand comparator. Products whose brand is blank or just
+// punctuation (imported that way from the price list) sort to the very end by
+// name instead of clustering at the top. A sort *key* cannot do this reliably —
+// locale collation ignores marker characters — so compare explicitly.
+function realBrand(p: { brand: string }): string {
+  // Drop leading stray punctuation from the price-list import ("(symphonix)…",
+  // ") Superior Care") so brands file under their actual first letter.
+  const b = (p.brand || "").replace(/^[^a-z0-9]+/i, "").trim();
+  return /[a-z0-9]/i.test(b) ? b.toLowerCase() : "";
+}
+
+export function compareByBrand(
+  a: { brand: string; name: string },
+  b: { brand: string; name: string }
+): number {
+  const ab = realBrand(a);
+  const bb = realBrand(b);
+  if (!ab !== !bb) return ab ? -1 : 1; // branded items first, blank-brand last
+  return ab.localeCompare(bb) || a.name.localeCompare(b.name);
+}
+
 const MANILA = "Asia/Manila";
 
 export function manilaNow(): Date {

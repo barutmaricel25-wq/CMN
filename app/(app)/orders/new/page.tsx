@@ -122,7 +122,7 @@ function NewOrderInner() {
       </div>
 
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={onScan} autoFocus={false} />
+        <BarcodeInput onScan={onScan} placeholder="Type barcode / SKU, then Enter" />
         <input className="input" placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} />
         {results.map((p) => (
           <button key={p.id} className="btn-secondary w-full justify-between" onClick={() => addItem(p.id)}>

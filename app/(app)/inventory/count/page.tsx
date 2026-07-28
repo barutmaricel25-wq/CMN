@@ -84,7 +84,7 @@ export default function StockCountPage() {
             ))}
           </div>
         )}
-        <BarcodeInput onScan={onScan} placeholder="Scan to count (+1 each scan)…" />
+        <BarcodeInput onScan={onScan} placeholder="Type barcode / SKU, then Enter" />
         {msg && <p className="text-sm font-semibold">{msg}</p>}
         <p className="text-xs text-slate-500">
           Only items on the sheet below are corrected. Everything you don&apos;t count is left untouched.

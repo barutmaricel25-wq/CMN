@@ -55,7 +55,7 @@ export default function TransfersPage() {
             <option value="">Choose branch…</option>
             {db.branches.filter((b) => b.id !== branchId).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <BarcodeInput onScan={(code) => { const p = db.products.find((x) => x.barcode === code); if (p) addItem(p.id); }} autoFocus={false} />
+          <BarcodeInput onScan={(code) => { const p = db.products.find((x) => x.barcode === code); if (p) addItem(p.id); }} placeholder="Type barcode / SKU, then Enter" />
           <input className="input" placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} />
           {results.map((p) => (
             <button key={p.id} className="btn-secondary w-full justify-start text-sm" onClick={() => addItem(p.id)}>{p.name} {p.size_variant}</button>

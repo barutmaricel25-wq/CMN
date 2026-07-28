@@ -13,7 +13,9 @@ export default function ReorderPage() {
 
   if (!session) return null;
   const user = db.users.find((u) => u.id === session.user_id)!;
-  const branches = user.role === "owner" ? db.branches : db.branches.filter((b) => b.id === session.branch_id);
+  // Owner and managers can review every branch; staff see their own only.
+  const seesAllBranches = user.role !== "staff";
+  const branches = seesAllBranches ? db.branches : db.branches.filter((b) => b.id === session.branch_id);
 
   const rows: { branch: string; product: string; brand: string; size: string; current: number; threshold: number; suggested: number; unit: string }[] = [];
   branches
@@ -51,7 +53,7 @@ export default function ReorderPage() {
           <button className="btn-primary !py-2" onClick={exportPO}>⬇️ CSV</button>
         </div>
       </div>
-      {user.role === "owner" && (
+      {seesAllBranches && (
         <select className="input print:hidden" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All branches</option>
           {db.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}

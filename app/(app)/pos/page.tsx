@@ -123,7 +123,7 @@ export default function POSPage() {
     <div className="space-y-3">
       {/* Scan + search */}
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={onScan} />
+        <BarcodeInput onScan={onScan} placeholder="Type barcode / SKU, then Enter" />
         {notFound && (
           <p className="text-sm text-red-600 font-semibold">No product with barcode “{notFound}”.</p>
         )}

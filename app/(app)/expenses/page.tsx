@@ -117,7 +117,7 @@ export default function ExpensesPage() {
           <div key={e.id} className="px-4 py-2.5 flex justify-between items-center gap-2">
             <div className="min-w-0">
               <div className="text-sm font-semibold">
-                {CAT_ICON[e.category]} {e.category}
+                {CAT_ICON[e.category]} {e.category === "other" && e.note ? e.note : e.category}
                 {isOwner && <span className="text-xs text-slate-400 ml-1">· {db.branches.find((b) => b.id === e.branch_id)?.name}</span>}
               </div>
               <div className="text-xs text-slate-500 truncate">
@@ -162,15 +162,29 @@ export default function ExpensesPage() {
               </div>
             )}
             <div>
-              <label className="label">Note</label>
-              <input className="input" placeholder="e.g. Meralco bill October" value={editing.note} onChange={(e) => setEditing({ ...editing, note: e.target.value })} />
+              <label className="label">
+                {editing.category === "other" ? "What is this expense for? *" : "Note"}
+              </label>
+              <input
+                className="input"
+                placeholder={editing.category === "other" ? "e.g. Tricycle fare, repair of freezer, permit fee" : "e.g. Meralco bill October"}
+                value={editing.note}
+                onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+              />
+              {editing.category === "other" && !editing.note.trim() && (
+                <p className="text-xs text-amber-700 font-semibold mt-1">
+                  Please type what this expense is for so the record makes sense later.
+                </p>
+              )}
             </div>
             <div className="flex gap-2 pt-1">
               {db.expenses.some((x) => x.id === editing.id) && (
                 <button className="btn-danger" onClick={() => { deleteExpense(editing.id, session.user_id); setEditing(null); }}>Delete</button>
               )}
               <button className="btn-ghost flex-1" onClick={() => setEditing(null)}>Cancel</button>
-              <button className="btn-primary flex-1" disabled={editing.amount <= 0}
+              <button
+                className="btn-primary flex-1"
+                disabled={editing.amount <= 0 || (editing.category === "other" && !editing.note.trim())}
                 onClick={() => { saveExpense(editing); setEditing(null); }}>
                 Save
               </button>

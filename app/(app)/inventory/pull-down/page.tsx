@@ -120,7 +120,7 @@ export default function PullDownPage() {
       </div>
 
       <div className="card p-3 space-y-2">
-        <BarcodeInput onScan={onScan} placeholder="Scan item…" />
+        <BarcodeInput onScan={onScan} placeholder="Type barcode / SKU, then Enter" />
         <input className="input" placeholder="No barcode? Search name…" value={search} onChange={(e) => setSearch(e.target.value)} />
         {results.map((p) => (
           <button key={p.id} className="btn-secondary w-full justify-between" onClick={() => { if (effectiveSource) pick(p); else setMsg("⚠ Pick the stock source first."); }}>
