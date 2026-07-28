@@ -38,6 +38,19 @@ export default function AdminPage() {
   );
 }
 
+// Download the whole device database as a dated JSON file.
+function backupNow() {
+  const raw = localStorage.getItem("cmn-demo-db-v1");
+  if (!raw) { window.alert("Nothing to back up yet."); return; }
+  const blob = new Blob([raw], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `cmn-backup-${new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function SettingsTab() {
   const db = useDB();
   const s = db.settings;
@@ -102,10 +115,44 @@ function SettingsTab() {
         </div>
       </div>
 
+      {/* Backup / restore — data lives on this device only, so keep a copy. */}
+      <div className="pt-2 border-t border-slate-200">
+        <div className="label">Backup & restore</div>
+        <p className="text-xs text-slate-500 mb-2">
+          Your data is stored on <b>this device only</b>. Save a backup file regularly — you can restore
+          it here, or load it on another device to copy everything over.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-secondary" onClick={backupNow}>⬇️ Save backup</button>
+          <label className="btn-secondary cursor-pointer">
+            ⬆️ Restore backup
+            <input
+              type="file" accept="application/json,.json" hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                f.text().then((text) => {
+                  try {
+                    const parsed = JSON.parse(text);
+                    if (!parsed || !Array.isArray(parsed.products)) throw new Error("not a CMN backup");
+                    if (!window.confirm("Restore this backup? It replaces the data currently on this device.")) return;
+                    localStorage.setItem("cmn-demo-db-v1", JSON.stringify(parsed));
+                    window.location.reload();
+                  } catch {
+                    window.alert("That file doesn't look like a CMN backup.");
+                  }
+                });
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="pt-2 border-t border-slate-200">
         <button
           className="btn-danger w-full"
-          onClick={() => { if (window.confirm("Reset ALL demo data back to the seed? This clears everything you entered.")) resetDemo(); }}
+          onClick={() => { if (window.confirm("Reset ALL demo data back to the seed? This clears everything you entered — save a backup first if you need it.")) resetDemo(); }}
         >
           🔄 Reset demo data
         </button>

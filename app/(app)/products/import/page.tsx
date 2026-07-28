@@ -10,7 +10,7 @@ import { CATEGORIES, Category } from "@/lib/types";
 
 const FIELDS = [
   { key: "sku", label: "SKU", required: false },
-  { key: "barcode", label: "Barcode", required: true },
+  { key: "barcode", label: "Barcode (optional)", required: false },
   { key: "name", label: "Product name", required: true },
   { key: "brand", label: "Brand", required: false },
   { key: "category", label: "Category", required: false },
@@ -18,10 +18,21 @@ const FIELDS = [
   { key: "size_variant", label: "Size/Variant", required: false },
   { key: "retail_price", label: "Retail price", required: true },
   { key: "wholesale_price", label: "Wholesale price", required: false },
-  { key: "suki_price", label: "Suki price", required: false },
-  { key: "cost_price", label: "Cost price", required: false },
+  { key: "suki_price", label: "Last price (Suki)", required: false },
+  { key: "ord_ws_price", label: "ORD W/S", required: false },
+  { key: "cost_price", label: "Unit price (cost)", required: false },
+  { key: "per_kilo", label: "Per kilo", required: false },
   { key: "low_stock_threshold", label: "Low-stock threshold", required: false },
 ] as const;
+
+// Internal barcodes for products that have none printed on the pack.
+function nextInternalBarcode(products: { barcode: string }[]): string {
+  const max = products.reduce((m, p) => {
+    const n = parseInt(p.barcode, 10);
+    return Number.isFinite(n) && n >= 2000000000000 && n > m ? n : m;
+  }, 2000000000000);
+  return String(max + 1);
+}
 
 export default function ImportPage() {
   const db = useDB();
@@ -51,7 +62,11 @@ export default function ImportPage() {
         if (/retail|srp/i.test(h)) m["retail_price"] = m["retail_price"] ?? i;
         if (/whole/i.test(h)) m["wholesale_price"] = m["wholesale_price"] ?? i;
         if (/suki/i.test(h)) m["suki_price"] = m["suki_price"] ?? i;
-        if (/cost|puhunan/i.test(h)) m["cost_price"] = m["cost_price"] ?? i;
+        if (/cost|puhunan|unit price/i.test(h)) m["cost_price"] = m["cost_price"] ?? i;
+        if (/ord/i.test(h)) m["ord_ws_price"] = m["ord_ws_price"] ?? i;
+        if (/kilo|per kg/i.test(h)) m["per_kilo"] = m["per_kilo"] ?? i;
+        if (/last/i.test(h)) m["suki_price"] = m["suki_price"] ?? i;
+        if (/selling/i.test(h)) m["retail_price"] = m["retail_price"] ?? i;
       });
       setMapping(m);
       setResult("");
@@ -63,14 +78,22 @@ export default function ImportPage() {
     tx((d) => {
       dataRows.forEach((r) => {
         const get = (key: string) => (mapping[key] !== undefined ? (r[mapping[key]] ?? "").trim() : "");
-        const barcode = get("barcode");
         const name = get("name");
-        if (!barcode || !name) { skipped++; return; }
+        if (!name) { skipped++; return; }
+        const csvBarcode = get("barcode");
+        const csvSku = get("sku");
+        const size = get("size_variant");
         const catRaw = get("category").toLowerCase();
         const category = (CATEGORIES.find((c) => c === catRaw || c.startsWith(catRaw.slice(0, 5))) ?? "other") as Category;
-        const existing = d.products.find((p) => p.barcode === barcode);
+        // Match an existing product by barcode, then SKU, then name + size.
+        const existing =
+          (csvBarcode ? d.products.find((p) => p.barcode === csvBarcode) : undefined) ??
+          (csvSku ? d.products.find((p) => p.sku.toLowerCase() === csvSku.toLowerCase()) : undefined) ??
+          d.products.find((p) => p.name.toLowerCase() === name.toLowerCase() && (p.size_variant ?? "").toLowerCase() === size.toLowerCase());
+        // No barcode in the file? Keep the existing one, or mint an internal code.
+        const barcode = csvBarcode || existing?.barcode || nextInternalBarcode(d.products);
         const patch = {
-          sku: get("sku") || (existing?.sku ?? barcode.slice(-6)),
+          sku: csvSku || (existing?.sku ?? barcode.slice(-6)),
           barcode, name,
           brand: get("brand") || (existing?.brand ?? ""),
           category,
@@ -80,13 +103,15 @@ export default function ImportPage() {
           wholesale_price: toCentavos(get("wholesale_price")) || toCentavos(get("retail_price")) || (existing?.wholesale_price ?? 0),
           suki_price: get("suki_price") ? toCentavos(get("suki_price")) : (existing?.suki_price ?? null),
           cost_price: toCentavos(get("cost_price")) || (existing?.cost_price ?? 0),
+          ord_ws_price: get("ord_ws_price") ? toCentavos(get("ord_ws_price")) : (existing?.ord_ws_price ?? null),
+          per_kilo: get("per_kilo") ? toCentavos(get("per_kilo")) : (existing?.per_kilo ?? null),
           low_stock_threshold: parseInt(get("low_stock_threshold")) || (existing?.low_stock_threshold ?? d.settings.low_stock_default),
         };
         if (existing) { Object.assign(existing, patch); updated++; }
         else { d.products.push({ ...blankProduct(d.settings.low_stock_default), ...patch }); created++; }
       });
     });
-    setResult(`✅ Imported: ${created} new, ${updated} updated, ${skipped} skipped (missing barcode/name).`);
+    setResult(`✅ Imported: ${created} new, ${updated} updated, ${skipped} skipped (no product name).`);
   }
 
   return (
@@ -94,7 +119,9 @@ export default function ImportPage() {
       <h1 className="font-bold text-lg">📄 CSV Price List Import</h1>
       <div className="card p-4 space-y-3">
         <p className="text-sm text-slate-600">
-          Upload your existing Excel price list saved as CSV. Products are matched by <b>barcode</b> — existing ones are updated, new ones created.
+          Upload your Excel price list saved as CSV. Only <b>product name</b> and <b>selling price</b> are required.
+          Products are matched by barcode, then SKU, then name + size — existing ones are updated, new ones created.
+          No barcode column? The app assigns an internal code automatically.
         </p>
         <a href="/price-list-template.csv" download className="btn-secondary w-full">⬇️ Download CSV template</a>
         <input type="file" accept=".csv,text/csv" className="input" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
@@ -123,7 +150,7 @@ export default function ImportPage() {
           </div>
           <button
             className="btn-primary w-full"
-            disabled={mapping["barcode"] === undefined || mapping["name"] === undefined || mapping["retail_price"] === undefined}
+            disabled={mapping["name"] === undefined || mapping["retail_price"] === undefined}
             onClick={runImport}
           >
             Import {dataRows.length} rows
