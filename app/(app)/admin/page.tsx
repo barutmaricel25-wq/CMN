@@ -1,6 +1,6 @@
 "use client";
 // Admin & Settings: branches, users/PINs, receipt text, paper width,
-// bank/GCash details, low-stock default, audit log viewer, demo reset.
+// low-stock default, payroll rates, audit log viewer, demo reset.
 import { useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
 import { useSession } from "@/lib/session";
@@ -64,14 +64,6 @@ function SettingsTab() {
           <label className="label">Tax line label</label>
           <input className="input" defaultValue={s.tax_label} onBlur={(e) => set({ tax_label: e.target.value })} />
         </div>
-      </div>
-      <div>
-        <label className="label">GCash details (used in reply templates)</label>
-        <input className="input" defaultValue={s.gcash_details} onBlur={(e) => set({ gcash_details: e.target.value })} />
-      </div>
-      <div>
-        <label className="label">Bank details (used in reply templates)</label>
-        <input className="input" defaultValue={s.bank_details} onBlur={(e) => set({ bank_details: e.target.value })} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>

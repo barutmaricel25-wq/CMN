@@ -97,7 +97,7 @@ function OrderSheet({ order, onClose }: { order: OnlineOrder; onClose: () => voi
     .join("\n");
   const templates: Record<string, string> = {
     "Order confirmation": `Hi ${cust?.name}! Confirmed po ang order niyo:\n${itemLines}\nTOTAL: ${peso(order.total)}\nSalamat po! — CMN Trading Corporation`,
-    "Ready for payment": `Hi ${cust?.name}! Ready na po ang order niyo (${peso(order.total)}).\nPayment options:\n${db.settings.gcash_details}\n${db.settings.bank_details}\nSend po ng screenshot pag nakabayad na. Salamat!`,
+    "Ready for payment": `Hi ${cust?.name}! Ready na po ang order niyo (${peso(order.total)}).\nSend po ng screenshot pag nakabayad na. Salamat!`,
     "Paid — book courier": `Payment received po, salamat! ${peso(order.total)} ✅\nPacked na po ang order niyo — pwede na po mag-book ng courier (Lalamove/Grab) papunta sa store. Ingat po!`,
   };
 

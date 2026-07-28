@@ -343,8 +343,6 @@ export interface Settings {
   receipt_footer: string;
   paper_width: "58mm" | "80mm";
   tax_label: string; // configurable, no hardcoded BIR compliance
-  bank_details: string;
-  gcash_details: string;
   low_stock_default: number;
   monthly_target: number; // centavos, per-branch monthly sales goal
   // Payroll defaults (centavos) — prefilled on every new payslip.
