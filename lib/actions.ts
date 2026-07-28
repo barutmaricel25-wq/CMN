@@ -472,13 +472,15 @@ export function dueDateFrom(dateISO: string, days: number): string {
 }
 
 // ---------- Payroll ----------
-// Total = (daily rate × days worked) + OT + holiday premium − late − advance.
+// Total = (daily rate × days worked) − late − SSS − PhilHealth − Pag-IBIG
+//         − SSS loan − advance salary.
 export function computePayroll(r: Omit<PayrollRecord, "total_pay">): number {
   const base = r.daily_rate * r.days_worked;
-  const ot = Math.round(r.hourly_rate * 1.25 * r.overtime_hours);
-  const holiday = r.daily_rate * r.holiday_days; // premium on top of the day's pay
   const lateDeduction = Math.round((r.hourly_rate / 60) * r.late_minutes);
-  return Math.max(0, base + ot + holiday - lateDeduction - r.advance_salary);
+  const deductions =
+    lateDeduction + r.sss_contribution + r.philhealth_contribution +
+    r.pagibig_contribution + r.sss_loan + r.advance_salary;
+  return Math.max(0, base - deductions);
 }
 
 export function savePayroll(r: PayrollRecord, by: string) {

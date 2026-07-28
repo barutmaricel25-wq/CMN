@@ -83,6 +83,33 @@ function SettingsTab() {
           <input className="input" inputMode="decimal" defaultValue={((s.monthly_target ?? 50000000) / 100).toFixed(0)} onBlur={(e) => set({ monthly_target: Math.max(1, Math.round(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 500000) * 100) })} />
         </div>
       </div>
+      {/* Payroll defaults — prefilled on every new payslip */}
+      <div className="pt-2 border-t border-slate-200">
+        <div className="label">Payroll defaults</div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="label !text-[10px]">Daily rate ₱</label>
+            <input className="input" inputMode="decimal" defaultValue={((s.default_daily_rate ?? 75500) / 100).toFixed(2)}
+              onBlur={(e) => set({ default_daily_rate: toCentavos(e.target.value) })} />
+          </div>
+          <div>
+            <label className="label !text-[10px]">SSS ₱</label>
+            <input className="input" inputMode="decimal" defaultValue={((s.sss_rate ?? 49000) / 100).toFixed(2)}
+              onBlur={(e) => set({ sss_rate: toCentavos(e.target.value) })} />
+          </div>
+          <div>
+            <label className="label !text-[10px]">PhilHealth ₱</label>
+            <input className="input" inputMode="decimal" defaultValue={((s.philhealth_rate ?? 37050) / 100).toFixed(2)}
+              onBlur={(e) => set({ philhealth_rate: toCentavos(e.target.value) })} />
+          </div>
+          <div>
+            <label className="label !text-[10px]">Pag-IBIG ₱</label>
+            <input className="input" inputMode="decimal" defaultValue={((s.pagibig_rate ?? 20000) / 100).toFixed(2)}
+              onBlur={(e) => set({ pagibig_rate: toCentavos(e.target.value) })} />
+          </div>
+        </div>
+      </div>
+
       <div className="pt-2 border-t border-slate-200">
         <button
           className="btn-danger w-full"

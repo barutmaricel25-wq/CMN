@@ -83,8 +83,9 @@ export function buildSeed(): DB {
     birthday: `19${80 + (seedIdx % 18)}-0${1 + (seedIdx % 9)}-1${seedIdx % 9}`,
     hired_date: `20${15 + (seedIdx % 10)}-0${1 + (seedIdx % 9)}-0${1 + (seedIdx % 8)}`,
     salary_rate: P(monthly),
-    daily_rate: P(Math.round(monthly / 26)),
-    hourly_rate: P(Math.round(monthly / 26 / 8)),
+    // Standard CMN daily rate; hourly derived from an 8-hour day.
+    daily_rate: P(755),
+    hourly_rate: P(755 / 8),
   });
 
   const users: User[] = [
@@ -321,6 +322,10 @@ export function buildSeed(): DB {
       gcash_details: "GCash 0917-123-4567 (C. Nolasco)",
       low_stock_default: 5,
       monthly_target: 50000000, // ₱500,000 per branch per month
+      default_daily_rate: P(755),
+      sss_rate: P(490),
+      philhealth_rate: P(370.5),
+      pagibig_rate: P(200),
     },
     receipt_counters,
   };

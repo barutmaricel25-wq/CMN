@@ -18,8 +18,8 @@ const NAV: NavItem[] = [
   { href: "/orders", label: "Online Orders", icon: "📦" },
   { href: "/inventory", label: "Stock", icon: "🏬" },
   { href: "/inventory/pull-down", label: "Pull Down / Get Stock", icon: "⬇️" },
-  // Receiving deliveries is owner-only.
-  { href: "/inventory/deliveries", label: "Receive Delivery", icon: "🚚", roles: ["owner"] },
+  // Receiving deliveries: owner + branch managers (never staff).
+  { href: "/inventory/deliveries", label: "Receive Delivery", icon: "🚚", roles: ["owner", "manager"] },
   { href: "/inventory/movements", label: "Movements Ledger", icon: "📒" },
   { href: "/inventory/count", label: "Stock Count", icon: "🔢" },
   { href: "/transfers", label: "Branch Transfers", icon: "🔁" },

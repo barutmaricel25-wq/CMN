@@ -33,13 +33,13 @@ export default function DeliveriesPage() {
   if (!session) return null;
   const me = db.users.find((u) => u.id === session.user_id)!;
 
-  // Owner-only screen.
-  if (me.role !== "owner") {
+  // Owner and branch managers only — never staff.
+  if (me.role === "staff") {
     return (
       <div className="card p-8 text-center">
         <div className="text-3xl mb-2">🔒</div>
-        <h1 className="font-bold text-lg mb-1">Owner access only</h1>
-        <p className="text-sm text-slate-500">Receiving deliveries is restricted to the owner account.</p>
+        <h1 className="font-bold text-lg mb-1">Manager access only</h1>
+        <p className="text-sm text-slate-500">Receiving deliveries is restricted to the owner and branch managers.</p>
       </div>
     );
   }

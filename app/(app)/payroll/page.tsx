@@ -36,10 +36,15 @@ export default function PayrollPage() {
 
   function startNew(userId: string) {
     const u = db.users.find((x) => x.id === userId)!;
+    const s = db.settings;
     setEditing({
       ...blankPayroll(u.id, u.branch_id ?? "", session!.user_id),
-      daily_rate: u.daily_rate,
-      hourly_rate: u.hourly_rate,
+      daily_rate: u.daily_rate || s.default_daily_rate,
+      hourly_rate: u.hourly_rate || Math.round((s.default_daily_rate ?? 0) / 8),
+      // Statutory deductions prefilled from Settings.
+      sss_contribution: s.sss_rate ?? 0,
+      philhealth_contribution: s.philhealth_rate ?? 0,
+      pagibig_contribution: s.pagibig_rate ?? 0,
       period_start: manilaDateKey().slice(0, 8) + "01",
       period_end: manilaDateKey(),
     });
@@ -48,13 +53,15 @@ export default function PayrollPage() {
   function exportCSV() {
     downloadCSV(`payroll-${manilaDateKey()}.csv`, [
       ["Employee", "Branch", "Period start", "Period end", "Daily rate", "Days worked", "Days absent",
-        "OT hours", "Holiday days", "Days late", "Late minutes", "Day off", "Advance", "Total pay"],
+        "Days late", "Late minutes", "Day off", "SSS", "PhilHealth", "Pag-IBIG", "SSS loan", "Advance", "Total pay"],
       ...records.map((r) => [
         db.users.find((u) => u.id === r.user_id)?.name ?? "",
         db.branches.find((b) => b.id === r.branch_id)?.name ?? "",
         r.period_start, r.period_end, (r.daily_rate / 100).toFixed(2),
-        r.days_worked, r.days_absent, r.overtime_hours, r.holiday_days,
+        r.days_worked, r.days_absent,
         r.days_late, r.late_minutes, r.days_off,
+        (r.sss_contribution / 100).toFixed(2), (r.philhealth_contribution / 100).toFixed(2),
+        (r.pagibig_contribution / 100).toFixed(2), (r.sss_loan / 100).toFixed(2),
         (r.advance_salary / 100).toFixed(2), (r.total_pay / 100).toFixed(2),
       ]),
     ]);
@@ -114,9 +121,11 @@ export default function PayrollPage() {
                 <Cell label="Days worked" value={String(r.days_worked)} />
                 <Cell label="Absent" value={String(r.days_absent)} />
                 <Cell label="Day off" value={String(r.days_off)} />
-                <Cell label="OT hours" value={String(r.overtime_hours)} />
-                <Cell label="Holiday days" value={String(r.holiday_days)} />
                 <Cell label="Late" value={`${r.days_late}d / ${r.late_minutes}m`} />
+                <Cell label="SSS" value={peso(r.sss_contribution)} />
+                <Cell label="PhilHealth" value={peso(r.philhealth_contribution)} />
+                <Cell label="Pag-IBIG" value={peso(r.pagibig_contribution)} />
+                <Cell label="SSS loan" value={peso(r.sss_loan)} />
                 <Cell label="Advance" value={peso(r.advance_salary)} />
               </div>
               {canEdit && (
@@ -165,6 +174,17 @@ function PayrollEditor({
   const set = (k: keyof PayrollRecord, v: number | string) => setR({ ...r, [k]: v });
   const total = computePayroll(r);
 
+  const pesoField = (label: string, key: keyof PayrollRecord) => (
+    <div>
+      <label className="label">{label} ₱</label>
+      <input
+        className="input" inputMode="decimal"
+        defaultValue={((r[key] as number) / 100).toFixed(2)}
+        onBlur={(e) => set(key, toCentavos(e.target.value))}
+      />
+    </div>
+  );
+
   const numField = (label: string, key: keyof PayrollRecord) => (
     <div>
       <label className="label">{label}</label>
@@ -205,14 +225,18 @@ function PayrollEditor({
           {numField("Number of days", "days_worked")}
           {numField("Days absent", "days_absent")}
           {numField("Day off", "days_off")}
-          {numField("Over time (hours)", "overtime_hours")}
-          {numField("Working holiday (days)", "holiday_days")}
           {numField("Days late", "days_late")}
           {numField("Late (minutes)", "late_minutes")}
-          <div>
-            <label className="label">Advance salary ₱</label>
-            <input className="input" inputMode="decimal" defaultValue={(r.advance_salary / 100).toFixed(2)}
-              onBlur={(e) => set("advance_salary", toCentavos(e.target.value))} />
+        </div>
+
+        <div className="pt-2 border-t border-slate-200">
+          <div className="label">Deductions</div>
+          <div className="grid grid-cols-2 gap-2">
+            {pesoField("SSS", "sss_contribution")}
+            {pesoField("PhilHealth", "philhealth_contribution")}
+            {pesoField("Pag-IBIG", "pagibig_contribution")}
+            {pesoField("SSS loan", "sss_loan")}
+            {pesoField("Advance salary", "advance_salary")}
           </div>
         </div>
 
@@ -223,7 +247,7 @@ function PayrollEditor({
           <div className="text-[10px] font-bold uppercase tracking-wide text-orange-700">Total pay</div>
           <div className="text-3xl font-extrabold text-orange-800 tabular-nums">{peso(total)}</div>
           <div className="text-[11px] text-slate-500 mt-1">
-            (daily × days) + OT×1.25 + holiday premium − late − advance
+            (daily rate × days) − late − SSS − PhilHealth − Pag-IBIG − SSS loan − advance
           </div>
         </div>
 

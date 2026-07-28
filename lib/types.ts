@@ -309,14 +309,17 @@ export interface PayrollRecord {
   period_start: string;
   period_end: string;
   daily_rate: number;       // snapshot at time of run, centavos
-  hourly_rate: number;      // centavos
+  hourly_rate: number;      // centavos (used for late deductions)
   days_worked: number;
   days_absent: number;
-  overtime_hours: number;
-  holiday_days: number;     // worked on a holiday
   days_late: number;
   late_minutes: number;
   days_off: number;
+  // Statutory deductions (centavos) — defaults come from Settings.
+  sss_contribution: number;
+  philhealth_contribution: number;
+  pagibig_contribution: number;
+  sss_loan: number;
   advance_salary: number;   // centavos, deducted
   total_pay: number;        // centavos, computed
   note: string;
@@ -344,6 +347,11 @@ export interface Settings {
   gcash_details: string;
   low_stock_default: number;
   monthly_target: number; // centavos, per-branch monthly sales goal
+  // Payroll defaults (centavos) — prefilled on every new payslip.
+  default_daily_rate: number;
+  sss_rate: number;
+  philhealth_rate: number;
+  pagibig_rate: number;
 }
 
 export interface DB {

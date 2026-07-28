@@ -49,9 +49,10 @@ export function blankPayroll(user_id: string, branch_id: string, created_by: str
     id: uid(), user_id, branch_id,
     period_start: manilaDateKey(), period_end: manilaDateKey(),
     daily_rate: 0, hourly_rate: 0,
-    days_worked: 0, days_absent: 0, overtime_hours: 0, holiday_days: 0,
+    days_worked: 0, days_absent: 0,
     days_late: 0, late_minutes: 0, days_off: 0,
-    advance_salary: 0, total_pay: 0, note: "", created_by,
+    sss_contribution: 0, philhealth_contribution: 0, pagibig_contribution: 0,
+    sss_loan: 0, advance_salary: 0, total_pay: 0, note: "", created_by,
     created_at: new Date().toISOString(),
   };
 }
