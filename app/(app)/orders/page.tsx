@@ -96,9 +96,9 @@ function OrderSheet({ order, onClose }: { order: OnlineOrder; onClose: () => voi
     })
     .join("\n");
   const templates: Record<string, string> = {
-    "Order confirmation": `Hi ${cust?.name}! Confirmed po ang order niyo:\n${itemLines}\nTOTAL: ${peso(order.total)}\nSalamat po! — CMN Trading Corporation`,
-    "Ready for payment": `Hi ${cust?.name}! Ready na po ang order niyo (${peso(order.total)}).\nSend po ng screenshot pag nakabayad na. Salamat!`,
-    "Paid — book courier": `Payment received po, salamat! ${peso(order.total)} ✅\nPacked na po ang order niyo — pwede na po mag-book ng courier (Lalamove/Grab) papunta sa store. Ingat po!`,
+    "Order confirmation": `Hi ${cust?.name}! Your order is confirmed:\n${itemLines}\nTOTAL: ${peso(order.total)}\nThank you! — CMN Trading Corporation`,
+    "Ready for payment": `Hi ${cust?.name}! Your order is ready (${peso(order.total)}).\nPlease send a screenshot once payment has been made. Thank you!`,
+    "Paid — book courier": `Payment received, thank you! ${peso(order.total)} ✅\nYour order is packed and ready — you may now book a courier (Lalamove/Grab) for pickup at the store. Take care!`,
   };
 
   function copy(name: string) {
