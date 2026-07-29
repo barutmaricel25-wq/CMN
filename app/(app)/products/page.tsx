@@ -23,6 +23,9 @@ export default function ProductsPage() {
   const [viewing, setViewing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
   const [focused, setFocused] = useState(false); // show typeahead dropdown
+  const [picking, setPicking] = useState(false); // multi-select mode
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   // Prefill from global search (?q=...)
   useEffect(() => {
@@ -58,6 +61,27 @@ export default function ProductsPage() {
     });
     return out;
   }, [rows]);
+
+  const toggle = (id: string) =>
+    setPicked((s0) => {
+      const n = new Set(s0);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  const setMany = (ids: string[], on: boolean) =>
+    setPicked((s0) => {
+      const n = new Set(s0);
+      ids.forEach((id) => (on ? n.add(id) : n.delete(id)));
+      return n;
+    });
+
+  function leavePicking() {
+    setPicking(false);
+    setPicked(new Set());
+    setConfirmBulk(false);
+  }
 
   // Categories come from the price list itself — one per imported worksheet.
   const categories = useMemo(() => {
@@ -114,6 +138,14 @@ export default function ProductsPage() {
         <h1 className="font-bold text-lg">🏷️ Products & Price List</h1>
         <div className="flex gap-2">
           <button className="btn-secondary !py-2" onClick={() => setPrintMode(true)}>🖨️ Price list</button>
+          {canEdit && (
+            <button
+              className={`!py-2 ${picking ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => (picking ? leavePicking() : setPicking(true))}
+            >
+              {picking ? "✕ Cancel select" : "☑️ Select"}
+            </button>
+          )}
           {canEdit && <Link href="/products/import" className="btn-secondary !py-2">📥 Import price list</Link>}
           {canEdit && (
             <button className="btn-primary !py-2" onClick={() => setEditing({ brand: "", category: "" })}>
@@ -173,6 +205,24 @@ export default function ProductsPage() {
         </button>
       )}
 
+      {picking && (
+        <div className="card p-3 space-y-2 border-orange-300">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold">{picked.size} selected</span>
+            <button
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+              onClick={() => setMany(rows.map((p) => p.id), picked.size < rows.length)}
+            >
+              {picked.size < rows.length ? `Select all ${rows.length} shown` : "Clear all"}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Search or pick a category first, then &ldquo;select all shown&rdquo; — that is the quickest way to clear out
+            a whole category.
+          </p>
+        </div>
+      )}
+
       <div className="text-xs text-slate-500 px-1">
         {rows.length} product{rows.length !== 1 ? "s" : ""}
         {rows.length > SHOW_LIMIT && ` — showing first ${SHOW_LIMIT}, search or filter to narrow`}
@@ -182,8 +232,17 @@ export default function ProductsPage() {
         {groups.map(({ brand, items }) => (
           <div key={brand} className="border-b border-slate-200 last:border-0">
             <div className="px-4 py-1.5 bg-slate-100 flex justify-between items-center gap-2">
-              <span className="font-bold text-sm uppercase tracking-wide text-slate-800 truncate">{brand || "No brand"}</span>
-              {canEdit && (
+              {picking && (
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 shrink-0"
+                  checked={items.every((p) => picked.has(p.id))}
+                  onChange={(e) => setMany(items.map((p) => p.id), e.target.checked)}
+                  title={`Select all of ${brand || "these"}`}
+                />
+              )}
+              <span className="font-bold text-sm uppercase tracking-wide text-slate-800 truncate flex-1">{brand || "No brand"}</span>
+              {canEdit && !picking && (
                 <button
                   className="text-[11px] font-bold text-orange-700 shrink-0"
                   onClick={() => setEditing({ brand, category: items[0].category })}
@@ -194,9 +253,21 @@ export default function ProductsPage() {
             </div>
             <div className="divide-y divide-slate-100">
               {items.map((p) => (
-                <button key={p.id} className="w-full text-left px-4 py-2 hover:bg-orange-50" onClick={() => setViewing(p)}>
+                <button
+                  key={p.id}
+                  className={`w-full text-left px-4 py-2 hover:bg-orange-50 ${picked.has(p.id) ? "bg-orange-100" : ""}`}
+                  onClick={() => (picking ? toggle(p.id) : setViewing(p))}
+                >
                   <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
+                    {picking && (
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 mt-0.5 shrink-0 pointer-events-none"
+                        checked={picked.has(p.id)}
+                        readOnly
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">{p.name}</div>
                       <div className="text-[11px] text-slate-500">
                         {p.category}
@@ -218,6 +289,47 @@ export default function ProductsPage() {
         ))}
         {rows.length === 0 && <p className="text-center text-sm text-slate-400 py-8">No products</p>}
       </div>
+
+      {/* Bulk delete bar — sits above the bottom navigation. */}
+      {picking && picked.size > 0 && (
+        <div className="fixed left-0 right-0 bottom-16 lg:bottom-4 z-40 px-3">
+          <div className="card p-3 shadow-lg border-red-300 max-w-lg mx-auto">
+            {confirmBulk ? (
+              <>
+                <p className="text-sm font-semibold text-red-800">
+                  Delete {picked.size} product{picked.size !== 1 ? "s" : ""}?
+                </p>
+                <p className="text-[11px] text-red-700 mt-0.5">
+                  Ones with stock or past sales are hidden instead of erased, so old receipts still add up. Every branch
+                  sees this.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button className="btn-ghost flex-1" onClick={() => setConfirmBulk(false)}>Keep them</button>
+                  <button
+                    className="btn-danger flex-1"
+                    onClick={() => {
+                      const { deleted, hidden } = deleteProducts([...picked], session.user_id);
+                      setFlash(
+                        `🗑 Removed ${deleted + hidden} product${deleted + hidden !== 1 ? "s" : ""}` +
+                          (hidden ? ` (${hidden} kept in the records — stock or sales history)` : "")
+                      );
+                      leavePicking();
+                    }}
+                  >
+                    Yes, delete
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold flex-1">{picked.size} selected</span>
+                <button className="btn-ghost !py-2" onClick={leavePicking}>Cancel</button>
+                <button className="btn-danger !py-2" onClick={() => setConfirmBulk(true)}>🗑 Delete</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {viewing && (
         <PriceDetail
