@@ -247,45 +247,13 @@ async function flush() {
   }
 }
 
-// Keep the device's own copy from just before it first joined the shared
-// database. If the join goes wrong, whatever was typed in on this device —
-// staff names, PINs, prices — can still be recovered.
-const PRE_SYNC_KEY = "cmn-pre-sync-backup";
-
-export function preSyncBackup(): DB | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(PRE_SYNC_KEY);
-    return raw ? (JSON.parse(raw) as DB) : null;
-  } catch {
-    return null;
-  }
-}
-
-// Put that copy back, then send it up so the other branches get it too.
-export async function restorePreSync(): Promise<boolean> {
-  const saved = preSyncBackup();
-  if (!saved) return false;
-  db = normalize(saved);
-  persist();
-  notify();
-  if (!cloudEnabled) return true;
-  await fullUpload(); // keeps retrying on its own if the signal drops
-  return true;
-}
-
 async function startCloud() {
   if (started || !cloudEnabled || typeof window === "undefined") return;
   started = true;
   try {
-    // Take the safety copy before anything from the server can replace it.
-    // load() first, so a device that has not written its copy out yet still
-    // gets one saved.
-    load();
-    if (!localStorage.getItem(PRE_SYNC_KEY)) {
-      const raw = localStorage.getItem(KEY);
-      if (raw) localStorage.setItem(PRE_SYNC_KEY, raw);
-    }
+    // An earlier build kept a second copy of everything here. It is no longer
+    // offered, and on a catalogue this size it is worth the space back.
+    localStorage.removeItem("cmn-pre-sync-backup");
     if (await withTimeout(cloudReady(), 12000, "Connecting")) {
       await pull();
       setSync("online");

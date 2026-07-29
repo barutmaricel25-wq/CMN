@@ -4,9 +4,9 @@
 import { useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
-import { preSyncBackup, restorePreSync } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
+import { deleteProducts } from "@/lib/actions";
 import { blankUser } from "@/lib/factories";
 import { Role, User } from "@/lib/types";
 
@@ -121,7 +121,7 @@ function SettingsTab() {
       <div className="pt-2 border-t border-slate-200 space-y-2">
         <div className="label">Data & sync</div>
         <SyncBadge full />
-        <PreSyncRecovery />
+        <ClearCatalogue />
         <div className="label">Backup & restore</div>
         <p className="text-xs text-slate-500 mb-2">
           Save a backup file to keep a copy of everything as it stands. Restoring replaces the data on this device.
@@ -402,47 +402,52 @@ function AuditTab() {
   );
 }
 
-// This device's copy from just before it joined the shared database. Offered
-// only when that copy differs, so it isn't a button people press by accident.
-function PreSyncRecovery() {
+// Clearing the catalogue before the real price list goes in. Products that were
+// never counted, moved or sold are erased; the rest are hidden, because sales
+// and stock records still point at them.
+function ClearCatalogue() {
   const db = useDB();
-  const [busy, setBusy] = useState(false);
+  const session = useSession();
+  const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState("");
-  const saved = typeof window === "undefined" ? null : preSyncBackup();
-  if (!saved) return null;
-
-  const staff = saved.users?.length ?? 0;
-  const items = saved.products?.length ?? 0;
-  // Nothing to offer if that copy says exactly what the app already shows.
-  const same =
-    JSON.stringify(saved.users ?? []) === JSON.stringify(db.users) &&
-    JSON.stringify(saved.products ?? []) === JSON.stringify(db.products);
-  if (same) return null;
+  const live = db.products.filter((p) => p.active);
+  if (!live.length && !done) return null;
 
   return (
-    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-      <div className="font-bold text-sm text-amber-900">Copy from before this device was connected</div>
-      <p className="text-xs text-amber-800 mt-0.5">
-        Saved automatically the first time this device joined the shared database:
-        <b> {staff} staff</b> and <b>{items} products</b>. Put it back if something you had typed in went missing —
-        it replaces what is on the shared database now, for every branch.
-      </p>
+    <div className="rounded-xl border border-slate-200 p-3">
+      <div className="font-bold text-sm">Product list</div>
       {done ? (
-        <p className="text-xs font-semibold text-emerald-700 mt-2">{done}</p>
+        <p className="text-xs font-semibold text-emerald-700 mt-1">{done}</p>
+      ) : confirming ? (
+        <>
+          <p className="text-sm font-semibold text-red-800 mt-1">Remove all {live.length} products?</p>
+          <p className="text-xs text-red-700 mt-0.5">
+            Every branch sees this. Ones with stock or past sales are hidden rather than erased, so old receipts and
+            the movements ledger still add up.
+          </p>
+          <div className="flex gap-2 mt-2">
+            <button className="btn-ghost flex-1" onClick={() => setConfirming(false)}>Keep them</button>
+            <button
+              className="btn-danger flex-1"
+              onClick={() => {
+                const { deleted, hidden } = deleteProducts(live.map((p) => p.id), session!.user_id);
+                setDone(`🗑 Removed ${deleted + hidden} products${hidden ? ` (${hidden} kept in the records)` : ""}. Import your price list next.`);
+                setConfirming(false);
+              }}
+            >
+              Yes, remove all
+            </button>
+          </div>
+        </>
       ) : (
-        <button
-          className="btn-secondary w-full mt-2"
-          disabled={busy}
-          onClick={async () => {
-            if (!window.confirm(`Put back ${staff} staff and ${items} products from before this device was connected? Every branch will see this.`)) return;
-            setBusy(true);
-            const ok = await restorePreSync();
-            setBusy(false);
-            setDone(ok ? "✅ Put back and sent to the other branches." : "Nothing saved to put back.");
-          }}
-        >
-          {busy ? "Putting it back…" : "↩️ Put that copy back"}
-        </button>
+        <>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {live.length} products in the app. Clear them out before importing your own price list for the first time.
+          </p>
+          <button className="btn-danger w-full mt-2" onClick={() => setConfirming(true)}>
+            🗑 Remove all products
+          </button>
+        </>
       )}
     </div>
   );
