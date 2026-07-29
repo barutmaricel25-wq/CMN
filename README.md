@@ -66,6 +66,8 @@ supabase/migrations # full PostgreSQL schema + RLS + triggers
 docs/               # 1-page user guides per role
 public/price-list-template.csv   # CSV import template
 lib/xlsx.ts                      # dependency-free .xlsx reader (ZIP + DecompressionStream)
+lib/cloud.ts                     # shared-database sync (Supabase): load, push diffs, live updates
+docs/SHARED-DATABASE-SETUP.md    # how to connect all six branches to one database
 ```
 
 ## Roadmap (out of scope for MVP)

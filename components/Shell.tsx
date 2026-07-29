@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useDB } from "@/lib/store";
+import SyncBadge from "@/components/SyncBadge";
 import { setSession, useSession } from "@/lib/session";
 import { brandName } from "@/lib/util";
 import { Role } from "@/lib/types";
@@ -124,9 +125,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {/* Mobile: branch line under header (name hidden above on small screens) */}
-        <div className="sm:hidden px-4 pb-1.5 -mt-1 text-[11px] text-orange-200 flex justify-between">
-          <span>{user.role === "owner" ? "Owner · " : ""}{branch?.name}</span>
-          <span>{user.name}</span>
+        <div className="sm:hidden px-4 pb-1.5 -mt-1 text-[11px] text-orange-200 flex justify-between items-center gap-2">
+          <span className="truncate">{user.role === "owner" ? "Owner · " : ""}{branch?.name}</span>
+          <SyncBadge />
+          <span className="truncate">{user.name}</span>
         </div>
       </header>
 

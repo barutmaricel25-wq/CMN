@@ -3,6 +3,7 @@
 // low-stock default, payroll rates, audit log viewer, demo reset.
 import { useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
+import SyncBadge from "@/components/SyncBadge";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
 import { blankUser } from "@/lib/factories";
@@ -115,12 +116,13 @@ function SettingsTab() {
         </div>
       </div>
 
-      {/* Backup / restore — data lives on this device only, so keep a copy. */}
-      <div className="pt-2 border-t border-slate-200">
+      {/* Where the data lives, then backup/restore. */}
+      <div className="pt-2 border-t border-slate-200 space-y-2">
+        <div className="label">Data & sync</div>
+        <SyncBadge full />
         <div className="label">Backup & restore</div>
         <p className="text-xs text-slate-500 mb-2">
-          Your data is stored on <b>this device only</b>. Save a backup file regularly — you can restore
-          it here, or load it on another device to copy everything over.
+          Save a backup file to keep a copy of everything as it stands. Restoring replaces the data on this device.
         </p>
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-secondary" onClick={backupNow}>⬇️ Save backup</button>

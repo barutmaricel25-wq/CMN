@@ -1,14 +1,22 @@
 "use client";
-// Demo-mode data layer: a localStorage-persisted DB with pub/sub reactivity.
-// Every screen reads via useDB() and writes via tx(). This module is the single
-// swap point for a future Supabase adapter (same action signatures, async).
+// The data layer. Every screen reads via useDB() and writes via tx().
+//
+// Two modes, decided by whether Supabase is configured:
+//   · shared  — all six branches read and write one Supabase database, with
+//               live updates; localStorage is kept as an offline cache
+//   · device  — each device keeps its own copy in localStorage (demo mode)
+// Screens and actions are identical either way.
 import { useSyncExternalStore } from "react";
 import { DB } from "./types";
 import { buildSeed } from "./seed";
+import { cloudEnabled, fetchAll, isEmpty, pushAll, pushDiff, subscribeRealtime } from "./cloud";
 
 const KEY = "cmn-demo-db-v1";
 let db: DB | null = null;
 const listeners = new Set<() => void>();
+
+const clone = (d: DB): DB => JSON.parse(JSON.stringify(d)) as DB;
+const notify = () => listeners.forEach((l) => l());
 
 // Upgrade a database saved by an older build: backfill collections and fields
 // added since, so existing devices keep their data instead of crashing.
@@ -135,27 +143,136 @@ export function getDB(): DB {
   return load();
 }
 
+// ---------- Shared-database sync ----------
+export type SyncState = "device" | "connecting" | "online" | "saving" | "error";
+let syncState: SyncState = cloudEnabled ? "connecting" : "device";
+let syncError = "";
+let lastPushed: DB | null = null; // what the server is known to hold
+let pushing = false;
+let pushAgain = false;
+let started = false;
+
+export interface SyncInfo { shared: boolean; state: SyncState; error: string }
+let statusSnap: SyncInfo = { shared: cloudEnabled, state: syncState, error: syncError };
+
+function setSync(state: SyncState, error = "") {
+  syncState = state;
+  syncError = error;
+  statusSnap = { shared: cloudEnabled, state, error };
+  notify();
+}
+
+const offlineSnap: SyncInfo = { shared: false, state: "device", error: "" };
+
+// Live connection status for the header/admin indicator.
+export function useSync(): SyncInfo {
+  return useSyncExternalStore(
+    subscribe,
+    () => statusSnap,
+    () => offlineSnap
+  );
+}
+
+// A request that never answers must not leave the badge stuck on "Connecting…";
+// staff need to know their branch is working offline.
+function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out — no answer from the shared database`)), ms)),
+  ]);
+}
+
+// Pull the shared database in, replacing whatever this device had cached.
+async function pull() {
+  const fresh = await withTimeout(fetchAll(), 20000, "Loading");
+  db = fresh;
+  lastPushed = clone(fresh);
+  persist();
+  notify();
+}
+
+async function flush() {
+  if (pushing) {
+    pushAgain = true;
+    return;
+  }
+  pushing = true;
+  try {
+    setSync("saving");
+    for (;;) {
+      pushAgain = false;
+      const target = db!;
+      await withTimeout(pushDiff(lastPushed!, target), 20000, "Saving");
+      lastPushed = clone(target);
+      if (!pushAgain) break;
+    }
+    setSync("online");
+  } catch (e) {
+    // Keep the edit on the device and try again — the shop cannot stop selling
+    // because the internet dropped.
+    setSync("error", e instanceof Error ? e.message : String(e));
+    setTimeout(flush, 5000);
+  } finally {
+    pushing = false;
+  }
+}
+
+async function startCloud() {
+  if (started || !cloudEnabled || typeof window === "undefined") return;
+  started = true;
+  try {
+    if (await withTimeout(isEmpty(), 12000, "Connecting")) {
+      // First device to connect uploads what it has, so nothing is lost.
+      const local = load();
+      await withTimeout(pushAll(local), 120000, "First upload");
+      lastPushed = clone(local);
+    } else {
+      await pull();
+    }
+    setSync("online");
+    subscribeRealtime(() => {
+      // Ignore echoes of our own writes; our copy is already ahead.
+      if (pushing || pushAgain) return;
+      pull().catch(() => undefined);
+    });
+  } catch (e) {
+    setSync("error", e instanceof Error ? e.message : String(e));
+    setTimeout(() => {
+      started = false;
+      startCloud();
+    }, 8000);
+  }
+}
+
 // All mutations go through tx(): mutate a draft, then persist + notify.
 export function tx(fn: (d: DB) => void) {
   const d = load();
   fn(d);
   db = { ...d }; // new reference so useSyncExternalStore re-renders
   persist();
-  listeners.forEach((l) => l());
-  // Cross-tab sync (simulates Supabase Realtime for the order board demo).
+  notify();
+  if (cloudEnabled && lastPushed) void flush();
+  // Cross-tab sync on one device (and the order board demo).
   if (typeof window !== "undefined") {
     try { window.dispatchEvent(new Event("cmn-db-changed")); } catch { /* noop */ }
   }
 }
 
+// Admin → start over. On a shared database this only refreshes this device;
+// wiping six branches' books is not something a button should do.
 export function resetDemo() {
+  if (cloudEnabled) {
+    pull().catch((e) => setSync("error", e instanceof Error ? e.message : String(e)));
+    return;
+  }
   db = buildSeed();
   persist();
-  listeners.forEach((l) => l());
+  notify();
 }
 
 function subscribe(cb: () => void) {
   listeners.add(cb);
+  void startCloud();
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY) {
       db = null;
