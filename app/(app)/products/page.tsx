@@ -1,6 +1,6 @@
 "use client";
 // Product catalog & price list (replaces the Excel file):
-// CRUD, three price tiers, CSV import, printable per-category price list.
+// CRUD, three price tiers, Excel/CSV import, printable per-category price list.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useDB } from "@/lib/store";
@@ -94,7 +94,7 @@ export default function ProductsPage() {
         <h1 className="font-bold text-lg">🏷️ Products & Price List</h1>
         <div className="flex gap-2">
           <button className="btn-secondary !py-2" onClick={() => setPrintMode(true)}>🖨️ Price list</button>
-          {canEdit && <Link href="/products/import" className="btn-secondary !py-2">📄 CSV import</Link>}
+          {canEdit && <Link href="/products/import" className="btn-secondary !py-2">📥 Import price list</Link>}
           {canEdit && (
             <button
               className="btn-primary !py-2"

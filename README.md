@@ -41,7 +41,7 @@ Env vars for that step: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_K
 
 | Phase | Modules |
 |---|---|
-| **1 — Foundation + Inventory** | Roles/branches · product catalog + 3 price tiers · CSV import with column mapping · printable price list · **two-location inventory (2F stockroom / store floor)** · **Pull-Down scan flow** · Receive Delivery (draft → post) · movements ledger (every unit traceable) · adjustments (manager PIN + reason) · stock count mode · low-stock alerts · auto seed |
+| **1 — Foundation + Inventory** | Roles/branches · product catalog + 3 price tiers · Excel (.xlsx) / CSV import with per-sheet column mapping · printable price list · **two-location inventory (2F stockroom / store floor)** · **Pull-Down scan flow** · Receive Delivery (draft → post) · movements ledger (every unit traceable) · adjustments (manager PIN + reason) · stock count mode · low-stock alerts · auto seed |
 | **2 — POS + Sales** | Barcode scan → cart · tier pricing from attached customer · price override + void with manager PIN · cash change calculator, GCash, bank · per-branch sequential receipts, printed via `window.print()` (58/80mm toggle) · daily sales dashboard · end-of-day report (incl. cash-in-drawer) · date-range CSV |
 | **3 — Online Orders + Customers** | Kanban order board (received → … → picked up) · ≤1-minute order encoding + quick-add customer · copyable Taglish reply templates (uses your bank/GCash settings) · payment-proof upload + manager verification (marks paid ⇒ stock out + sale) · packed photo via live camera · customer profiles, history, metrics, **Repeat last order** |
 | **4 — Attendance + Owner + Transfers** | Clock in/out with **forced live selfie** (getUserMedia, no gallery) + GPS geofence check (out-of-radius flagged, never rejected) · manager review + timesheet CSV · owner multi-branch dashboard (today/week/month, branch chart, top products) · branch transfers with two-sided qty confirmation + discrepancy flags · reorder suggestions (threshold × 2 − current) with PO print/CSV · audit log viewer |
@@ -65,6 +65,7 @@ lib/                # types (data model), seed, store (demo adapter), actions (d
 supabase/migrations # full PostgreSQL schema + RLS + triggers
 docs/               # 1-page user guides per role
 public/price-list-template.csv   # CSV import template
+lib/xlsx.ts                      # dependency-free .xlsx reader (ZIP + DecompressionStream)
 ```
 
 ## Roadmap (out of scope for MVP)
