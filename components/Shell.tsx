@@ -64,6 +64,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const visibleNav = NAV.filter((l) => !l.roles || l.roles.includes(user.role));
 
+  // Owners and managers can look at any branch; staff stay on their own.
+  const canSwitchBranch = user.role !== "staff";
+  const awayFromHome = user.role === "manager" && user.branch_id !== session.branch_id;
+
+  const branchPicker = (className: string) => (
+    <select
+      className={className}
+      value={session.branch_id ?? ""}
+      onChange={(e) => setSession({ ...session, branch_id: e.target.value })}
+      aria-label="Branch"
+    >
+      {db.branches.map((b) => (
+        <option key={b.id} value={b.id}>{b.name}</option>
+      ))}
+    </select>
+  );
+
   const navLinks = (compact: boolean) => (
     <nav className={compact ? "p-2" : "p-3"}>
       {visibleNav.map((l) => {
@@ -94,16 +111,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <img src="/logo.jpg" alt="CMN logo" className="w-8 h-8 rounded-full border border-orange-300 shrink-0" />
           <div className="min-w-0 hidden sm:block">
             <div className="font-bold leading-tight text-sm whitespace-nowrap">CMN Trading Corp.</div>
-            {user.role === "owner" ? (
-              <select
-                className="bg-orange-900 text-orange-100 text-xs rounded px-1 py-0.5 max-w-[150px]"
-                value={session.branch_id ?? ""}
-                onChange={(e) => setSession({ ...session, branch_id: e.target.value })}
-              >
-                {db.branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+            {canSwitchBranch ? (
+              branchPicker("bg-orange-900 text-orange-100 text-xs rounded px-1 py-0.5 max-w-[150px]")
             ) : (
               <div className="text-orange-200 text-xs truncate">{branch?.name}</div>
             )}
@@ -130,11 +139,31 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
         {/* Mobile: branch line under header (name hidden above on small screens) */}
         <div className="sm:hidden px-4 pb-1.5 -mt-1 text-[11px] text-orange-200 flex justify-between items-center gap-2">
-          <span className="truncate">{user.role === "owner" ? "Owner · " : ""}{branch?.name}</span>
+          {canSwitchBranch ? (
+            branchPicker("bg-orange-900 text-orange-100 text-[11px] rounded px-1.5 py-1 max-w-[45%]")
+          ) : (
+            <span className="truncate">{branch?.name}</span>
+          )}
           <SyncBadge />
           <span className="truncate">{user.name}</span>
         </div>
       </header>
+
+      {/* A manager looking at another branch: anything they ring up or move
+          would be recorded against that branch, so say so plainly. */}
+      {awayFromHome && (
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs px-4 py-2 flex items-center justify-between gap-2 print:hidden">
+          <span>
+            👀 Viewing <b>{branch?.name}</b> — not your branch. Sales and stock changes here are recorded against it.
+          </span>
+          <button
+            className="font-bold underline whitespace-nowrap"
+            onClick={() => setSession({ ...session, branch_id: user.branch_id })}
+          >
+            Back to mine
+          </button>
+        </div>
+      )}
 
       {/* Desktop sidebar */}
       <aside className="hidden lg:block fixed left-0 top-[52px] bottom-0 w-60 bg-white border-r border-slate-200 overflow-y-auto print:hidden">
