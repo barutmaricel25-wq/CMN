@@ -40,11 +40,19 @@ function normalize(raw: unknown): DB {
 
   // Products gained ORD W/S and per-kilo columns; reseed if the catalog is empty.
   const products = arr(d.products, seed.products);
-  d.products = (products.length ? products : seed.products).map((p) => ({
-    ...p,
-    ord_ws_price: p.ord_ws_price ?? null,
-    per_kilo: p.per_kilo ?? null,
-  }));
+  // The whole ACCESSORIES sheet originally imported as "collars/leash/harness".
+  // Move the brushes, feeders, balls and mats to their real categories on
+  // devices that already installed the app — only for rows still sitting in
+  // that bucket, so a category anyone edited by hand is left alone.
+  const seedCategory = new Map(seed.products.map((p) => [p.sku, p.category]));
+  d.products = (products.length ? products : seed.products).map((p) => {
+    const correct = seedCategory.get(p.sku);
+    const category =
+      p.category === "collars/leash/harness" && correct && correct !== p.category
+        ? correct
+        : p.category;
+    return { ...p, category, ord_ws_price: p.ord_ws_price ?? null, per_kilo: p.per_kilo ?? null };
+  });
 
   d.customers = arr(d.customers, seed.customers).map((c) => ({
     ...c,
