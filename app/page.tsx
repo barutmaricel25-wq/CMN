@@ -31,7 +31,7 @@ export default function LoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.jpg" alt="CMN Trading Corporation logo" className="w-28 h-28 mx-auto rounded-full shadow-lg mb-3" />
           <h1 className="text-2xl font-extrabold text-orange-900">CMN Trading Corporation</h1>
-          <p className="text-orange-800/70 text-sm">Multi-branch management system · Demo</p>
+          <p className="text-orange-800/70 text-sm">Multi-branch management system</p>
         </div>
 
         <div className="card p-4 mb-4">
@@ -39,7 +39,7 @@ export default function LoginPage() {
           {byBranch(null).map((u) => (
             <button key={u.id} className="btn-secondary w-full justify-between" onClick={() => setPinFor(u)}>
               <span>👑 {u.name}</span>
-              <span className="text-xs text-slate-400">PIN {u.pin}</span>
+              <span className="text-xs text-slate-400">Owner</span>
             </button>
           ))}
         </div>
@@ -55,7 +55,6 @@ export default function LoginPage() {
                       {u.role === "manager" ? "🧑‍💼" : "🧑"} {u.name}
                       <span className="ml-2 text-xs text-slate-400 uppercase">{u.role}</span>
                     </span>
-                    <span className="text-xs text-slate-400">PIN {u.pin}</span>
                   </button>
                 ))}
               </div>
@@ -63,7 +62,7 @@ export default function LoginPage() {
           ))}
         </div>
         <p className="text-orange-900/60 text-xs text-center mt-2">
-          Demo PINs are shown for convenience. Data lives on this device (localStorage).
+          Tap your name, then enter your own PIN.
         </p>
       </div>
 
