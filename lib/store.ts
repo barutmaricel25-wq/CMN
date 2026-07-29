@@ -158,6 +158,7 @@ export type SyncState = "device" | "connecting" | "online" | "saving" | "error";
 let syncState: SyncState = cloudEnabled ? "connecting" : "device";
 let syncError = "";
 let lastPushed: DB | null = null; // what the server is known to hold
+let unsent = false;               // edits made here that the server hasn't got
 let pushing = false;
 let pushAgain = false;
 let started = false;
@@ -198,6 +199,7 @@ let localEdits = 0;
 
 // Pull the shared database in, replacing whatever this device had cached.
 async function pull() {
+  if (unsent) return; // this device has edits the server hasn't got yet
   const startedAt = localEdits;
   const fresh = await withTimeout(fetchAll(), 20000, "Loading");
   if (!fresh.branches.length || !fresh.users.length) {
@@ -225,6 +227,7 @@ async function fullUpload() {
     const target = db ?? load();
     await withTimeout(pushAll(target), 180000, "Upload");
     lastPushed = clone(target);
+    unsent = false;
     setSync("online");
   } catch (e) {
     setSync("error", e instanceof Error ? e.message : String(e));
@@ -247,6 +250,7 @@ async function flush() {
       lastPushed = clone(target);
       if (!pushAgain) break;
     }
+    unsent = false;
     setSync("online");
   } catch (e) {
     // Keep the edit on the device and try again — the shop cannot stop selling
@@ -298,7 +302,14 @@ export function tx(fn: (d: DB) => void) {
   db = { ...d }; // new reference so useSyncExternalStore re-renders
   persist();
   notify();
-  if (cloudEnabled && lastPushed) void flush();
+  if (cloudEnabled) {
+    unsent = true;
+    // With no known server state there is nothing to diff against, so send the
+    // whole copy. Skipping here used to strand the edit on the device, where
+    // the next refresh quietly replaced it.
+    if (lastPushed) void flush();
+    else void fullUpload();
+  }
   // Cross-tab sync on one device (and the order board demo).
   if (typeof window !== "undefined") {
     try { window.dispatchEvent(new Event("cmn-db-changed")); } catch { /* noop */ }
@@ -309,6 +320,11 @@ export function tx(fn: (d: DB) => void) {
 // connection it helps to be able to press something and watch what happens.
 export async function refreshFromCloud(): Promise<string> {
   if (!cloudEnabled) return "This device isn't connected to a shared database.";
+  // Get this device's own work up first, or refreshing would discard it.
+  if (unsent) {
+    await fullUpload();
+    if (unsent) return `⚠ This device has changes that haven't been sent yet: ${syncError}`;
+  }
   try {
     setSync("saving");
     await pull();
