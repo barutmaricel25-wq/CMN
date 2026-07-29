@@ -10,8 +10,19 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { DB } from "./types";
 import { buildSeed } from "./seed";
 
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const KEY_ = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+// The Supabase settings page offers several addresses. Only the plain project
+// URL works here, so trim the REST/auth suffixes and any trailing slash rather
+// than failing with "Invalid path specified in request URL".
+function projectUrl(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/(rest|auth|realtime|storage|functions)\/v\d+$/i, "")
+    .replace(/\/+$/, "");
+}
+
+const URL_ = projectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+const KEY_ = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
 export const cloudEnabled = Boolean(URL_ && KEY_);
 
