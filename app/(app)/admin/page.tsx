@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
+import { preSyncBackup, restorePreSync } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
 import { blankUser } from "@/lib/factories";
@@ -120,6 +121,7 @@ function SettingsTab() {
       <div className="pt-2 border-t border-slate-200 space-y-2">
         <div className="label">Data & sync</div>
         <SyncBadge full />
+        <PreSyncRecovery />
         <div className="label">Backup & restore</div>
         <p className="text-xs text-slate-500 mb-2">
           Save a backup file to keep a copy of everything as it stands. Restoring replaces the data on this device.
@@ -396,6 +398,46 @@ function AuditTab() {
         })}
         {rows.length === 0 && <p className="text-center text-sm text-slate-400 py-8">Empty audit log</p>}
       </div>
+    </div>
+  );
+}
+
+// This device's copy from just before it joined the shared database. Offered
+// only when that copy differs, so it isn't a button people press by accident.
+function PreSyncRecovery() {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const saved = typeof window === "undefined" ? null : preSyncBackup();
+  if (!saved) return null;
+
+  const staff = saved.users?.length ?? 0;
+  const items = saved.products?.length ?? 0;
+
+  return (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+      <div className="font-bold text-sm text-amber-900">Copy from before this device was connected</div>
+      <p className="text-xs text-amber-800 mt-0.5">
+        Saved automatically the first time this device joined the shared database:
+        <b> {staff} staff</b> and <b>{items} products</b>. Put it back if something you had typed in went missing —
+        it replaces what is on the shared database now, for every branch.
+      </p>
+      {done ? (
+        <p className="text-xs font-semibold text-emerald-700 mt-2">{done}</p>
+      ) : (
+        <button
+          className="btn-secondary w-full mt-2"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm(`Put back ${staff} staff and ${items} products from before this device was connected? Every branch will see this.`)) return;
+            setBusy(true);
+            const ok = await restorePreSync();
+            setBusy(false);
+            setDone(ok ? "✅ Put back and sent to the other branches." : "Nothing saved to put back.");
+          }}
+        >
+          {busy ? "Putting it back…" : "↩️ Put that copy back"}
+        </button>
+      )}
     </div>
   );
 }
