@@ -405,6 +405,7 @@ function AuditTab() {
 // This device's copy from just before it joined the shared database. Offered
 // only when that copy differs, so it isn't a button people press by accident.
 function PreSyncRecovery() {
+  const db = useDB();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
   const saved = typeof window === "undefined" ? null : preSyncBackup();
@@ -412,6 +413,11 @@ function PreSyncRecovery() {
 
   const staff = saved.users?.length ?? 0;
   const items = saved.products?.length ?? 0;
+  // Nothing to offer if that copy says exactly what the app already shows.
+  const same =
+    JSON.stringify(saved.users ?? []) === JSON.stringify(db.users) &&
+    JSON.stringify(saved.products ?? []) === JSON.stringify(db.products);
+  if (same) return null;
 
   return (
     <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
