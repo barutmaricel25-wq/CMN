@@ -95,11 +95,12 @@ export async function fetchAll(): Promise<DB> {
   return db;
 }
 
-// Is the shared database still empty? Then this device seeds it.
-export async function isEmpty(): Promise<boolean> {
-  const { count, error } = await sb().from("branches").select("id", { count: "exact", head: true });
+// Has a first upload ever finished? The marker is written last, so a run that
+// stopped part-way leaves it unset and the half-filled tables are not trusted.
+export async function cloudReady(): Promise<boolean> {
+  const { data, error } = await sb().from("app_state").select("value").eq("key", "upload_complete").maybeSingle();
   if (error) throw new Error(error.message);
-  return (count ?? 0) === 0;
+  return data?.value === true;
 }
 
 async function upsert(table: string, rows: Row[]) {
@@ -115,10 +116,12 @@ async function putState(key: string, value: unknown) {
 }
 
 export async function pushAll(d: DB) {
+  await putState("upload_complete", false);
   for (const t of TABLES) await upsert(t, rowsOf(d, t));
   await putState("settings", d.settings);
   await putState("receipt_counters", d.receipt_counters);
   await putState("seeded_at", d.seeded_at);
+  await putState("upload_complete", true); // written last, on purpose
 }
 
 // Send only what actually changed since the last push.

@@ -9,7 +9,7 @@
 import { useSyncExternalStore } from "react";
 import { DB } from "./types";
 import { buildSeed } from "./seed";
-import { cloudEnabled, fetchAll, isEmpty, pushAll, pushDiff, subscribeRealtime } from "./cloud";
+import { cloudEnabled, cloudReady, fetchAll, pushAll, pushDiff, subscribeRealtime } from "./cloud";
 
 const KEY = "cmn-demo-db-v1";
 let db: DB | null = null;
@@ -26,13 +26,18 @@ function normalize(raw: unknown): DB {
 
   const arr = <T,>(v: unknown, fallback: T[] = []): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
 
-  d.branches = arr(d.branches, seed.branches).map((b) => ({
+  // An empty branches/users list means the saved copy is unusable — nobody
+  // could even sign in — so fall back to the seed rather than showing a blank
+  // screen forever.
+  const savedBranches = arr(d.branches, seed.branches);
+  d.branches = (savedBranches.length ? savedBranches : seed.branches).map((b) => ({
     ...b,
     has_stockroom: b.has_stockroom ?? true,
     address: b.address ?? "",
   }));
 
-  d.users = arr(d.users, seed.users).map((u) => ({
+  const savedUsers = arr(d.users, seed.users);
+  d.users = (savedUsers.length ? savedUsers : seed.users).map((u) => ({
     ...u,
     contact_number: u.contact_number ?? "",
     address: u.address ?? "",
@@ -185,6 +190,9 @@ function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> 
 // Pull the shared database in, replacing whatever this device had cached.
 async function pull() {
   const fresh = await withTimeout(fetchAll(), 20000, "Loading");
+  if (!fresh.branches.length || !fresh.users.length) {
+    throw new Error("The shared database has no branches or staff yet — keeping this device's copy.");
+  }
   db = fresh;
   lastPushed = clone(fresh);
   persist();
@@ -221,13 +229,15 @@ async function startCloud() {
   if (started || !cloudEnabled || typeof window === "undefined") return;
   started = true;
   try {
-    if (await withTimeout(isEmpty(), 12000, "Connecting")) {
-      // First device to connect uploads what it has, so nothing is lost.
-      const local = load();
-      await withTimeout(pushAll(local), 120000, "First upload");
-      lastPushed = clone(local);
-    } else {
+    if (await withTimeout(cloudReady(), 12000, "Connecting")) {
       await pull();
+    } else {
+      // Either nothing is up there yet, or a previous upload stopped halfway.
+      // Send this device's copy and only mark it complete once it all lands,
+      // so a half-filled database is never mistaken for the real thing.
+      const local = load();
+      await withTimeout(pushAll(local), 180000, "First upload");
+      lastPushed = clone(local);
     }
     setSync("online");
     subscribeRealtime(() => {
