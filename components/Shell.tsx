@@ -112,6 +112,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <GlobalSearch role={user.role} />
 
           <div className="flex items-center gap-2 text-right shrink-0">
+            {/* Sync status: on the phone it sits in the branch line below. */}
+            <span className="hidden sm:inline-flex">
+              <SyncBadge />
+            </span>
             <div className="hidden sm:block">
               <div className="text-xs font-semibold">{user.name}</div>
               <div className="text-[10px] uppercase text-orange-300">{user.role}</div>
