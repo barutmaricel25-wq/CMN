@@ -58,27 +58,53 @@ export type Table = (typeof TABLES)[number];
 type Row = { id: string } & Record<string, unknown>;
 const rowsOf = (d: DB, t: Table) => (d[t] as unknown as Row[]) ?? [];
 
-// Supabase caps a single response at 1000 rows, and the catalogue is bigger.
-// Reading it in pages only works if the rows come back in a settled order —
-// without one, Postgres is free to answer each page differently, which skips
-// some rows and repeats others. Hence the explicit order by id, the check that
-// the pages add up to the row count the server reports, and the de-duplication.
+// Supabase caps a single response at 1000 rows, and the tables are bigger —
+// a branch's stock alone runs to tens of thousands of rows. Reading them in
+// pages only works if the rows come back in a settled order: without one,
+// Postgres may answer each page differently, skipping some rows and repeating
+// others. So: order by the key, ask for the row count once rather than on every
+// page (it re-counts the whole table each time), fetch the remaining pages a
+// few at a time instead of one after another, and check the total adds up.
+const PAGE = 1000;
+const AT_ONCE = 4;
+
+async function page(table: string, keyCol: string, from: number, withCount: boolean) {
+  const q = sb()
+    .from(table)
+    .select("*", withCount ? { count: "exact" } : undefined)
+    .order(keyCol, { ascending: true })
+    .range(from, from + PAGE - 1);
+  const { data, error, count } = await q;
+  if (error) throw new Error(`${table}: ${error.message}`);
+  return { rows: (data ?? []) as Row[], count: count ?? null };
+}
+
 // Every table is keyed by "id" except app_state, which is keyed by "key".
 async function selectAll(table: string, keyCol = "id"): Promise<Row[]> {
-  const size = 1000;
   const seen = new Map<string, Row>();
-  let total: number | null = null;
+  const keep = (rows: Row[]) =>
+    rows.forEach((r) => seen.set(String((r as Record<string, unknown>)[keyCol]), r));
 
-  for (let from = 0; ; from += size) {
-    const { data, error, count } = await sb()
-      .from(table)
-      .select("*", { count: "exact" })
-      .order(keyCol, { ascending: true })
-      .range(from, from + size - 1);
-    if (error) throw new Error(`${table}: ${error.message}`);
-    if (total === null) total = count ?? null;
-    (data ?? []).forEach((r) => seen.set(String((r as Record<string, unknown>)[keyCol]), r as Row));
-    if (!data || data.length < size) break;
+  const first = await page(table, keyCol, 0, true);
+  keep(first.rows);
+  const total = first.count;
+
+  if (total !== null && total > PAGE) {
+    const starts: number[] = [];
+    for (let from = PAGE; from < total; from += PAGE) starts.push(from);
+    for (let i = 0; i < starts.length; i += AT_ONCE) {
+      const batch = await Promise.all(
+        starts.slice(i, i + AT_ONCE).map((from) => page(table, keyCol, from, false))
+      );
+      batch.forEach((b) => keep(b.rows));
+    }
+  } else if (total === null && first.rows.length === PAGE) {
+    // No count came back; fall back to walking the pages.
+    for (let from = PAGE; ; from += PAGE) {
+      const next = await page(table, keyCol, from, false);
+      keep(next.rows);
+      if (next.rows.length < PAGE) break;
+    }
   }
 
   const rows = [...seen.values()];

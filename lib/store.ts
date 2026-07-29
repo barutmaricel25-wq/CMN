@@ -201,7 +201,7 @@ let localEdits = 0;
 async function pull() {
   if (unsent) return; // this device has edits the server hasn't got yet
   const startedAt = localEdits;
-  const fresh = await withTimeout(fetchAll(), 20000, "Loading");
+  const fresh = await withTimeout(fetchAll(), 90000, "Loading");
   if (!fresh.branches.length || !fresh.users.length) {
     throw new Error("The shared database has no branches or staff yet — keeping this device's copy.");
   }
@@ -224,9 +224,12 @@ async function fullUpload() {
   }
   try {
     setSync("saving");
-    const target = db ?? load();
+    // Snapshot before sending. tx() shallow-copies the database, so the lists
+    // inside are shared: an edit made while this is in flight would otherwise
+    // end up recorded as already sent, and never be sent at all.
+    const target = clone(db ?? load());
     await withTimeout(pushAll(target), 180000, "Upload");
-    lastPushed = clone(target);
+    lastPushed = target;
     unsent = false;
     setSync("online");
   } catch (e) {
@@ -245,9 +248,11 @@ async function flush() {
     setSync("saving");
     for (;;) {
       pushAgain = false;
-      const target = db!;
+      // Snapshot first — see the note in fullUpload. Recording the live object
+      // after the send would mark edits made meanwhile as already sent.
+      const target = clone(db!);
       await withTimeout(pushDiff(lastPushed!, target), 20000, "Saving");
-      lastPushed = clone(target);
+      lastPushed = target;
       if (!pushAgain) break;
     }
     unsent = false;
