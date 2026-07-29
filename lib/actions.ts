@@ -84,6 +84,42 @@ export function saveProduct(p: Product, user_id: string) {
   });
 }
 
+// Save a whole brand at once: the price list is kept brand-first ("AOZI CAT"),
+// with each type under it ("Adult Small", "Adult Big") stored as its own
+// product so it can carry its own prices and stock.
+export function saveBrand(products: Product[], removedIds: string[], user_id: string) {
+  products.forEach((p) => saveProduct(p, user_id));
+  if (removedIds.length) deleteProducts(removedIds, user_id);
+}
+
+// Remove products. Anything already counted, moved or sold is hidden instead of
+// erased, so past receipts and the movements ledger still add up.
+export function deleteProducts(ids: string[], user_id: string): { deleted: number; hidden: number } {
+  let deleted = 0;
+  let hidden = 0;
+  tx((d) => {
+    ids.forEach((id) => {
+      const p = d.products.find((x) => x.id === id);
+      if (!p) return;
+      const used =
+        d.sale_items.some((x) => x.product_id === id) ||
+        d.stock_movements.some((x) => x.product_id === id) ||
+        d.inventory.some((x) => x.product_id === id && x.qty !== 0);
+      if (used) {
+        audit(d, user_id, "update", "product", id, p, { ...p, active: false });
+        p.active = false;
+        hidden++;
+      } else {
+        audit(d, user_id, "delete", "product", id, p, undefined);
+        d.products = d.products.filter((x) => x.id !== id);
+        d.inventory = d.inventory.filter((x) => x.product_id !== id);
+        deleted++;
+      }
+    });
+  });
+  return { deleted, hidden };
+}
+
 // ---------- Pull-down (the #1 fix) ----------
 export function pullDown(product_id: string, branch_id: string, qty: number, performed_by: string) {
   tx((d) => {

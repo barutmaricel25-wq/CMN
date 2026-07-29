@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { saveProduct } from "@/lib/actions";
+import { saveBrand, deleteProducts } from "@/lib/actions";
 import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, categoriesOf, Product } from "@/lib/types";
@@ -18,7 +18,8 @@ export default function ProductsPage() {
   const session = useSession();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
-  const [editing, setEditing] = useState<Product | null>(null);
+  const [editing, setEditing] = useState<{ brand: string; category: string } | null>(null);
+  const [flash, setFlash] = useState("");
   const [viewing, setViewing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
   const [focused, setFocused] = useState(false); // show typeahead dropdown
@@ -115,12 +116,7 @@ export default function ProductsPage() {
           <button className="btn-secondary !py-2" onClick={() => setPrintMode(true)}>🖨️ Price list</button>
           {canEdit && <Link href="/products/import" className="btn-secondary !py-2">📥 Import price list</Link>}
           {canEdit && (
-            <button
-              className="btn-primary !py-2"
-              onClick={() =>
-                setEditing(blankProduct(db.settings.low_stock_default))
-              }
-            >
+            <button className="btn-primary !py-2" onClick={() => setEditing({ brand: "", category: "" })}>
               + Add
             </button>
           )}
@@ -171,6 +167,12 @@ export default function ProductsPage() {
         </select>
       </div>
 
+      {flash && (
+        <button className="card w-full p-3 text-sm font-semibold text-orange-800 bg-orange-50 border-orange-200 text-left" onClick={() => setFlash("")}>
+          {flash} <span className="text-slate-400 font-normal">— tap to dismiss</span>
+        </button>
+      )}
+
       <div className="text-xs text-slate-500 px-1">
         {rows.length} product{rows.length !== 1 ? "s" : ""}
         {rows.length > SHOW_LIMIT && ` — showing first ${SHOW_LIMIT}, search or filter to narrow`}
@@ -179,8 +181,16 @@ export default function ProductsPage() {
       <div className="card overflow-hidden">
         {groups.map(({ brand, items }) => (
           <div key={brand} className="border-b border-slate-200 last:border-0">
-            <div className="px-4 py-1.5 bg-slate-100 font-bold text-sm uppercase tracking-wide text-slate-800">
-              {brand || "No brand"}
+            <div className="px-4 py-1.5 bg-slate-100 flex justify-between items-center gap-2">
+              <span className="font-bold text-sm uppercase tracking-wide text-slate-800 truncate">{brand || "No brand"}</span>
+              {canEdit && (
+                <button
+                  className="text-[11px] font-bold text-orange-700 shrink-0"
+                  onClick={() => setEditing({ brand, category: items[0].category })}
+                >
+                  ✏️ Edit
+                </button>
+              )}
             </div>
             <div className="divide-y divide-slate-100">
               {items.map((p) => (
@@ -214,15 +224,19 @@ export default function ProductsPage() {
           p={viewing}
           canEdit={canEdit}
           onClose={() => setViewing(null)}
-          onEdit={() => { setEditing({ ...viewing }); setViewing(null); }}
+          onEdit={() => { setEditing({ brand: viewing.brand, category: viewing.category }); setViewing(null); }}
         />
       )}
 
       {editing && (
-        <ProductEditor
-          product={editing}
+        <BrandEditor
+          brand={editing.brand}
+          category={editing.category}
+          items={db.products.filter(
+            (p) => p.active && p.brand === editing.brand && p.category === editing.category
+          )}
           onClose={() => setEditing(null)}
-          onSave={(p) => { saveProduct(p, session.user_id); setEditing(null); }}
+          onSaved={(msg, jumpTo) => { setFlash(msg); setEditing(null); setQ(jumpTo); setCat(""); }}
         />
       )}
     </div>
@@ -271,66 +285,216 @@ function PriceBox({ label, value, tone = "white", wide = false }: { label: strin
   );
 }
 
-function ProductEditor({ product, onClose, onSave }: { product: Product; onClose: () => void; onSave: (p: Product) => void }) {
+// Edits a whole brand the way the price list reads: the brand on top, its types
+// listed underneath, each type carrying its own prices and per-kilo figure.
+function BrandEditor({
+  brand,
+  category,
+  items,
+  onClose,
+  onSaved,
+}: {
+  brand: string;
+  category: string;
+  items: Product[];
+  onClose: () => void;
+  onSaved: (msg: string, jumpTo: string) => void;
+}) {
   const db = useDB();
-  const [p, setP] = useState(product);
-  // Free text with suggestions — categories come from the imported worksheets.
+  const session = useSession();
   const categories = categoriesOf(db.products);
-  const set = (k: keyof Product, v: unknown) => setP({ ...p, [k]: v });
-  type PriceKey = "retail_price" | "wholesale_price" | "suki_price" | "cost_price" | "ord_ws_price" | "per_kilo";
-  const NULLABLE: PriceKey[] = ["suki_price", "ord_ws_price", "per_kilo"];
-  const priceField = (label: string, key: PriceKey) => (
-    <div>
-      <label className="label">{label}</label>
-      <input
-        className="input" inputMode="decimal"
-        defaultValue={p[key] === null ? "" : ((p[key] as number) / 100).toFixed(2)}
-        onBlur={(e) => set(key, NULLABLE.includes(key) && !e.target.value.trim() ? null : toCentavos(e.target.value))}
-      />
-    </div>
+  const [brandInput, setBrandInput] = useState(brand);
+  const [catInput, setCatInput] = useState(category);
+  const [types, setTypes] = useState<Product[]>(() =>
+    items.length ? items.map((p) => ({ ...p })) : [blankProduct(db.settings.low_stock_default)]
   );
+  const [removed, setRemoved] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const setType = (i: number, patch: Partial<Product>) =>
+    setTypes((ts) => ts.map((t, n) => (n === i ? { ...t, ...patch } : t)));
+
+  function removeType(i: number) {
+    const t = types[i];
+    if (items.some((x) => x.id === t.id)) setRemoved((r) => [...r, t.id]);
+    setTypes((ts) => ts.filter((_, n) => n !== i));
+  }
+
+  const NULLABLE = ["suki_price", "ord_ws_price", "per_kilo"] as const;
+  type PriceKey = "retail_price" | "wholesale_price" | "suki_price" | "cost_price" | "ord_ws_price" | "per_kilo";
+  const priceField = (i: number, label: string, key: PriceKey) => {
+    const v = types[i][key];
+    return (
+      <div>
+        <label className="label !text-[10px]">{label}</label>
+        <input
+          className="input !py-2"
+          inputMode="decimal"
+          defaultValue={v === null ? "" : (v / 100).toFixed(2)}
+          onBlur={(e) =>
+            setType(i, {
+              [key]:
+                (NULLABLE as readonly string[]).includes(key) && !e.target.value.trim()
+                  ? null
+                  : toCentavos(e.target.value),
+            } as Partial<Product>)
+          }
+        />
+      </div>
+    );
+  };
+
+  const named = types.filter((t) => t.name.trim());
+  const canSave = brandInput.trim() !== "" && catInput.trim() !== "" && named.length > 0;
+
+  function save() {
+    const payload = named.map((t) => ({
+      ...t,
+      brand: brandInput.trim(),
+      category: catInput.trim(),
+      name: t.name.trim(),
+      active: true,
+    }));
+    // Types left blank were never filled in, so drop them rather than save them.
+    const blanks = types.filter((t) => !t.name.trim() && items.some((x) => x.id === t.id)).map((t) => t.id);
+    saveBrand(payload, [...removed, ...blanks], session!.user_id);
+    // Jump the list to the brand just saved — the catalogue is long.
+    onSaved(`✅ Saved ${brandInput.trim()} — ${payload.length} type${payload.length !== 1 ? "s" : ""}`, brandInput.trim());
+  }
+
+  function deleteBrand() {
+    const ids = items.map((x) => x.id);
+    const { deleted, hidden } = deleteProducts(ids, session!.user_id);
+    onSaved(
+      `🗑 Removed ${brand} — ${deleted + hidden} type${deleted + hidden !== 1 ? "s" : ""}` +
+        (hidden ? ` (${hidden} kept in the records because ${hidden === 1 ? "it has" : "they have"} stock or sales history)` : ""),
+      ""
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 rounded-b-none sm:rounded-2xl space-y-3" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-bold text-lg">{product.name ? "Edit product" : "New product"}</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div><label className="label">SKU</label><input className="input" value={p.sku} onChange={(e) => set("sku", e.target.value)} /></div>
-          <div><label className="label">Barcode</label><input className="input font-mono" value={p.barcode} onChange={(e) => set("barcode", e.target.value)} /></div>
+      <div
+        className="card w-full max-w-lg max-h-[92vh] overflow-y-auto p-5 rounded-b-none sm:rounded-2xl space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="font-bold text-lg">{items.length ? "Edit brand" : "New brand"}</h3>
+
+        <div>
+          <label className="label">Brand name</label>
+          <input
+            className="input font-bold"
+            placeholder="e.g. AOZI CAT"
+            value={brandInput}
+            onChange={(e) => setBrandInput(e.target.value)}
+            autoFocus
+          />
         </div>
-        <div><label className="label">Name</label><input className="input" value={p.name} onChange={(e) => set("name", e.target.value)} /></div>
-        <div className="grid grid-cols-2 gap-2">
-          <div><label className="label">Brand</label><input className="input" value={p.brand} onChange={(e) => set("brand", e.target.value)} /></div>
-          <div>
-            <label className="label">Category</label>
-            <input className="input" list="category-options" value={p.category} onChange={(e) => set("category", e.target.value)} />
-            <datalist id="category-options">
-              {categories.map((c) => <option key={c} value={c} />)}
-            </datalist>
+        <div>
+          <label className="label">Category</label>
+          <input className="input" list="category-options" placeholder="e.g. Cat Food Per Bag" value={catInput} onChange={(e) => setCatInput(e.target.value)} />
+          <datalist id="category-options">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </div>
+
+        <div className="pt-1">
+          <div className="label">Types under this brand</div>
+          <div className="space-y-2">
+            {types.map((t, i) => (
+              <div key={t.id} className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input font-semibold"
+                    placeholder="e.g. Adult Small"
+                    value={t.name}
+                    onChange={(e) => setType(i, { name: e.target.value })}
+                  />
+                  <button
+                    className="text-red-600 font-bold px-2 shrink-0"
+                    title="Remove this type"
+                    onClick={() => removeType(i)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {priceField(i, "Unit price", "cost_price")}
+                  {priceField(i, "ORD/SUKI", "ord_ws_price")}
+                  {priceField(i, "Wholesale", "wholesale_price")}
+                  {priceField(i, "Last price", "suki_price")}
+                  {priceField(i, "Selling price", "retail_price")}
+                  {priceField(i, "Per kilo", "per_kilo")}
+                </div>
+                <details>
+                  <summary className="text-xs text-slate-500 cursor-pointer">More</summary>
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div>
+                      <label className="label !text-[10px]">Barcode</label>
+                      <input
+                        className="input !py-2 font-mono"
+                        placeholder="added later"
+                        value={isInternalBarcode(t.barcode) ? "" : t.barcode}
+                        onChange={(e) => setType(i, { barcode: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="label !text-[10px]">Low-stock alert at</label>
+                      <input
+                        className="input !py-2"
+                        type="number"
+                        inputMode="numeric"
+                        value={t.low_stock_threshold}
+                        onChange={(e) => setType(i, { low_stock_threshold: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                </details>
+              </div>
+            ))}
           </div>
-          <div><label className="label">Unit</label><input className="input" value={p.unit} onChange={(e) => set("unit", e.target.value)} /></div>
-          <div><label className="label">Size/variant</label><input className="input" value={p.size_variant} onChange={(e) => set("size_variant", e.target.value)} /></div>
+          <button
+            className="btn-secondary w-full mt-2"
+            onClick={() => setTypes((ts) => [...ts, blankProduct(db.settings.low_stock_default)])}
+          >
+            + Add another type
+          </button>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {priceField("Unit price (cost) ₱", "cost_price")}
-          {priceField("ORD W/S ₱", "ord_ws_price")}
-          {priceField("Whole sale ₱", "wholesale_price")}
-          {priceField("Last price (Suki) ₱", "suki_price")}
-          {priceField("Selling price (Retail) ₱", "retail_price")}
-          {priceField("Per kilo ₱", "per_kilo")}
-        </div>
-        <div className="grid grid-cols-2 gap-2 items-end">
-          <div>
-            <label className="label">Low-stock threshold</label>
-            <input className="input" type="number" inputMode="numeric" value={p.low_stock_threshold} onChange={(e) => set("low_stock_threshold", parseInt(e.target.value) || 0)} />
-          </div>
-          <label className="flex items-center gap-2 font-semibold text-sm pb-3">
-            <input type="checkbox" className="w-5 h-5" checked={p.active} onChange={(e) => set("active", e.target.checked)} /> Active
-          </label>
-        </div>
+
         <div className="flex gap-2 pt-2">
-          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
-          <button className="btn-primary flex-1" disabled={!p.name.trim()} onClick={() => onSave(p)}>Save</button>
+          <button className="btn-ghost flex-1" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-primary flex-1" disabled={!canSave} onClick={save}>
+            Save
+          </button>
         </div>
+
+        {items.length > 0 &&
+          (confirmDelete ? (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
+              <p className="text-sm font-semibold text-red-800">
+                Delete {brand} and all {items.length} of its type{items.length !== 1 ? "s" : ""}?
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                Types with stock or past sales are hidden instead of erased, so old receipts and the ledger still add up.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button className="btn-ghost flex-1" onClick={() => setConfirmDelete(false)}>
+                  Keep it
+                </button>
+                <button className="btn-danger flex-1" onClick={deleteBrand}>
+                  Yes, delete
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-danger w-full" onClick={() => setConfirmDelete(true)}>
+              🗑 Delete this brand
+            </button>
+          ))}
       </div>
     </div>
   );
