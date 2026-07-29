@@ -199,6 +199,28 @@ async function pull() {
   notify();
 }
 
+// Send this device's whole copy up, retrying until it lands. Used when the
+// shared database has no finished upload yet, and after putting back the
+// pre-sync copy — both leave the server without a complete set until this wins.
+let uploadRetry: ReturnType<typeof setTimeout> | null = null;
+
+async function fullUpload() {
+  if (uploadRetry) {
+    clearTimeout(uploadRetry);
+    uploadRetry = null;
+  }
+  try {
+    setSync("saving");
+    const target = db ?? load();
+    await withTimeout(pushAll(target), 180000, "Upload");
+    lastPushed = clone(target);
+    setSync("online");
+  } catch (e) {
+    setSync("error", e instanceof Error ? e.message : String(e));
+    uploadRetry = setTimeout(fullUpload, 8000);
+  }
+}
+
 async function flush() {
   if (pushing) {
     pushAgain = true;
@@ -248,14 +270,7 @@ export async function restorePreSync(): Promise<boolean> {
   persist();
   notify();
   if (!cloudEnabled) return true;
-  try {
-    setSync("saving");
-    await withTimeout(pushAll(db), 180000, "Upload");
-    lastPushed = clone(db);
-    setSync("online");
-  } catch (e) {
-    setSync("error", e instanceof Error ? e.message : String(e));
-  }
+  await fullUpload(); // keeps retrying on its own if the signal drops
   return true;
 }
 
@@ -273,15 +288,15 @@ async function startCloud() {
     }
     if (await withTimeout(cloudReady(), 12000, "Connecting")) {
       await pull();
+      setSync("online");
     } else {
       // Either nothing is up there yet, or a previous upload stopped halfway.
       // Send this device's copy and only mark it complete once it all lands,
       // so a half-filled database is never mistaken for the real thing.
-      const local = load();
-      await withTimeout(pushAll(local), 180000, "First upload");
-      lastPushed = clone(local);
+      // fullUpload reports its own state — never claim "in sync" while it is
+      // still retrying in the background.
+      await fullUpload();
     }
-    setSync("online");
     subscribeRealtime(() => {
       // Ignore echoes of our own writes; our copy is already ahead.
       if (pushing || pushAgain) return;
