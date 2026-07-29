@@ -6,10 +6,12 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveProduct } from "@/lib/actions";
-import { peso, toCentavos, brandName, compareByBrand } from "@/lib/util";
+import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
-import { CATEGORIES, Category, Product } from "@/lib/types";
+import { CATEGORIES, categoriesOf, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
+
+const SHOW_LIMIT = 400;
 
 export default function ProductsPage() {
   const db = useDB();
@@ -45,12 +47,29 @@ export default function ProductsPage() {
     [db.products, q, cat]
   );
 
+  // Brand blocks, alphabetical, exactly how the Excel price list is laid out.
+  const groups = useMemo(() => {
+    const out: { brand: string; items: Product[] }[] = [];
+    rows.slice(0, SHOW_LIMIT).forEach((p) => {
+      const last = out[out.length - 1];
+      if (last && last.brand === p.brand) last.items.push(p);
+      else out.push({ brand: p.brand, items: [p] });
+    });
+    return out;
+  }, [rows]);
+
+  // Categories come from the price list itself — one per imported worksheet.
+  const categories = useMemo(() => {
+    const used = categoriesOf(db.products.filter((p) => p.active));
+    return used.length ? used : [...CATEGORIES];
+  }, [db.products]);
+
   if (!session) return null;
   const user = db.users.find((u) => u.id === session.user_id)!;
   const canEdit = user.role !== "staff";
 
   if (printMode) {
-    const grouped = CATEGORIES.map((c) => ({ c, items: rows.filter((p) => p.category === c) })).filter((g) => g.items.length);
+    const grouped = categories.map((c) => ({ c, items: rows.filter((p) => p.category === c) })).filter((g) => g.items.length);
     return (
       <div>
         <div className="flex gap-2 mb-4 print:hidden">
@@ -148,28 +167,44 @@ export default function ProductsPage() {
         </div>
         <select className="input w-full" value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
       <div className="text-xs text-slate-500 px-1">
         {rows.length} product{rows.length !== 1 ? "s" : ""}
-        {rows.length > 150 && " — showing first 150, search or filter to narrow"}
+        {rows.length > SHOW_LIMIT && ` — showing first ${SHOW_LIMIT}, search or filter to narrow`}
       </div>
-      <div className="card divide-y divide-slate-100">
-        {rows.slice(0, 150).map((p) => (
-          <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-slate-50" onClick={() => setViewing(p)}>
-            <div className="flex justify-between items-start gap-2">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold truncate">{brandName(p)}</div>
-                <div className="text-xs text-slate-500">{p.category} · {p.size_variant} · {p.sku} · {p.barcode}</div>
-              </div>
-              <div className="text-right whitespace-nowrap text-xs">
-                <div className="font-bold text-sm tabular-nums">{peso(p.retail_price)}</div>
-                <div className="text-slate-500 tabular-nums">WS {peso(p.wholesale_price)} · Suki {p.suki_price ? peso(p.suki_price) : "—"}</div>
-              </div>
+      {/* Laid out like the price list itself: brand in bold, its types under it. */}
+      <div className="card overflow-hidden">
+        {groups.map(({ brand, items }) => (
+          <div key={brand} className="border-b border-slate-200 last:border-0">
+            <div className="px-4 py-1.5 bg-slate-100 font-bold text-sm uppercase tracking-wide text-slate-800">
+              {brand || "No brand"}
             </div>
-          </button>
+            <div className="divide-y divide-slate-100">
+              {items.map((p) => (
+                <button key={p.id} className="w-full text-left px-4 py-2 hover:bg-orange-50" onClick={() => setViewing(p)}>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm truncate">{p.name}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {p.category}
+                        {p.size_variant && ` · ${p.size_variant}`}
+                        {!isInternalBarcode(p.barcode) && ` · ${p.barcode}`}
+                      </div>
+                    </div>
+                    <div className="text-right whitespace-nowrap text-xs">
+                      <div className="font-bold text-sm tabular-nums">{peso(p.retail_price)}</div>
+                      <div className="text-slate-500 tabular-nums">
+                        WS {peso(p.wholesale_price)} · Last {p.suki_price ? peso(p.suki_price) : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
         {rows.length === 0 && <p className="text-center text-sm text-slate-400 py-8">No products</p>}
       </div>
@@ -237,7 +272,10 @@ function PriceBox({ label, value, tone = "white", wide = false }: { label: strin
 }
 
 function ProductEditor({ product, onClose, onSave }: { product: Product; onClose: () => void; onSave: (p: Product) => void }) {
+  const db = useDB();
   const [p, setP] = useState(product);
+  // Free text with suggestions — categories come from the imported worksheets.
+  const categories = categoriesOf(db.products);
   const set = (k: keyof Product, v: unknown) => setP({ ...p, [k]: v });
   type PriceKey = "retail_price" | "wholesale_price" | "suki_price" | "cost_price" | "ord_ws_price" | "per_kilo";
   const NULLABLE: PriceKey[] = ["suki_price", "ord_ws_price", "per_kilo"];
@@ -264,9 +302,10 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
           <div><label className="label">Brand</label><input className="input" value={p.brand} onChange={(e) => set("brand", e.target.value)} /></div>
           <div>
             <label className="label">Category</label>
-            <select className="input" value={p.category} onChange={(e) => set("category", e.target.value as Category)}>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <input className="input" list="category-options" value={p.category} onChange={(e) => set("category", e.target.value)} />
+            <datalist id="category-options">
+              {categories.map((c) => <option key={c} value={c} />)}
+            </datalist>
           </div>
           <div><label className="label">Unit</label><input className="input" value={p.unit} onChange={(e) => set("unit", e.target.value)} /></div>
           <div><label className="label">Size/variant</label><input className="input" value={p.size_variant} onChange={(e) => set("size_variant", e.target.value)} /></div>

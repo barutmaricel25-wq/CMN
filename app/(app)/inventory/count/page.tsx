@@ -7,7 +7,7 @@ import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { adjustStock } from "@/lib/actions";
 import { peso, brandName } from "@/lib/util";
-import { CATEGORIES, Location, Product } from "@/lib/types";
+import { CATEGORIES, categoriesOf, Location, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import PinModal from "@/components/PinModal";
 
@@ -23,6 +23,11 @@ export default function StockCountPage() {
   const [msg, setMsg] = useState("");
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("");
+
+  const categories = useMemo(() => {
+    const used = categoriesOf(db.products.filter((p) => p.active));
+    return used.length ? used : [...CATEGORIES];
+  }, [db.products]);
 
   const branchId = session?.branch_id ?? "";
   const branch = db.branches.find((b) => b.id === branchId);
@@ -97,7 +102,7 @@ export default function StockCountPage() {
         <input className="input" placeholder="Search by name / brand / SKU…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="input" value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Choose a category to browse…</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         {results.length > 0 && (
           <>

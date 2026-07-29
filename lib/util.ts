@@ -47,6 +47,14 @@ export function compareByBrand(
   return ab.localeCompare(bb) || a.name.localeCompare(b.name);
 }
 
+// Products imported without a printed barcode get an internal code so the app
+// still has something unique to scan against. They aren't real barcodes, so
+// they're not worth showing to staff.
+export function isInternalBarcode(code: string): boolean {
+  const n = parseInt(code, 10);
+  return Number.isFinite(n) && n >= 2000000000000 && n < 2000001000000;
+}
+
 const MANILA = "Asia/Manila";
 
 export function manilaNow(): Date {

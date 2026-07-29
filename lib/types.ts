@@ -66,6 +66,9 @@ export interface User {
   hourly_rate: number; // centavos
 }
 
+// Categories are free text: importing a price list creates one category per
+// worksheet, named exactly as the sheet is named ("Cat Food Per Bag"). These
+// are only the starting set and the fallback for anything uncategorised.
 export const CATEGORIES = [
   "dry food",
   "wet food",
@@ -80,7 +83,14 @@ export const CATEGORIES = [
   "cologne",
   "other",
 ] as const;
-export type Category = (typeof CATEGORIES)[number];
+export type Category = string;
+
+// Every category actually in use, in the order a person would look for them.
+export function categoriesOf(products: { category: string }[]): string[] {
+  return Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
 
 export interface Product {
   id: string;

@@ -7,6 +7,10 @@
 export interface Sheet {
   name: string;
   rows: string[][];
+  // Same shape as rows: true where the cell is filled with a colour or bolded.
+  // The CMN price list marks each brand (and each letter section in the
+  // medicine sheets) that way, which is how the import finds the headings.
+  marked: boolean[][];
 }
 
 interface Entry {
@@ -88,10 +92,31 @@ function sharedStrings(doc: Document | null): string[] {
   });
 }
 
-function sheetRows(doc: Document, shared: string[]): string[][] {
+// Which style indexes count as "marked" — a coloured fill or a bold font.
+function readStyles(doc: Document | null): boolean[] {
+  if (!doc) return [];
+  const list = (parent: string, child: string) => {
+    const node = doc.getElementsByTagName(parent)[0];
+    return node ? Array.from(node.getElementsByTagName(child)) : [];
+  };
+  const fills = list("fills", "fill").map((f) => {
+    const type = f.getElementsByTagName("patternFill")[0]?.getAttribute("patternType") ?? "none";
+    return type !== "none" && type !== "gray125";
+  });
+  const bold = list("fonts", "font").map((f) => f.getElementsByTagName("b").length > 0);
+  return list("cellXfs", "xf").map(
+    (xf) =>
+      fills[parseInt(xf.getAttribute("fillId") ?? "0", 10)] === true ||
+      bold[parseInt(xf.getAttribute("fontId") ?? "0", 10)] === true
+  );
+}
+
+function sheetGrid(doc: Document, shared: string[], styleMarked: boolean[]): Pick<Sheet, "rows" | "marked"> {
   const rows: string[][] = [];
+  const marked: boolean[][] = [];
   Array.from(doc.getElementsByTagName("row")).forEach((row) => {
     const cells: string[] = [];
+    const flags: boolean[] = [];
     Array.from(row.getElementsByTagName("c")).forEach((c) => {
       const ref = c.getAttribute("r") ?? "";
       const at = ref ? colIndex(ref) : cells.length;
@@ -105,16 +130,24 @@ function sheetRows(doc: Document, shared: string[]): string[][] {
         const raw = c.getElementsByTagName("v")[0]?.textContent ?? "";
         value = type === "s" ? shared[parseInt(raw, 10)] ?? "" : raw;
       }
-      while (cells.length < at) cells.push("");
+      while (cells.length < at) {
+        cells.push("");
+        flags.push(false);
+      }
       cells[at] = value.trim();
+      flags[at] = styleMarked[parseInt(c.getAttribute("s") ?? "0", 10)] === true;
     });
     // Rows carry their own 1-based number; blank rows are simply missing.
     const n = parseInt(row.getAttribute("r") ?? "", 10);
     const at = Number.isFinite(n) ? n - 1 : rows.length;
-    while (rows.length < at) rows.push([]);
+    while (rows.length < at) {
+      rows.push([]);
+      marked.push([]);
+    }
     rows[at] = cells;
+    marked[at] = flags;
   });
-  return rows;
+  return { rows, marked };
 }
 
 export async function readXLSX(file: File): Promise<Sheet[]> {
@@ -135,6 +168,9 @@ export async function readXLSX(file: File): Promise<Sheet[]> {
   const ssText = await readPart(zip, buf, "xl/sharedStrings.xml");
   const shared = sharedStrings(ssText ? parse(ssText) : null);
 
+  const stylesText = await readPart(zip, buf, "xl/styles.xml");
+  const styleMarked = readStyles(stylesText ? parse(stylesText) : null);
+
   const NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
   const sheets: Sheet[] = [];
   const nodes = Array.from(wb.getElementsByTagName("sheet"));
@@ -144,7 +180,10 @@ export async function readXLSX(file: File): Promise<Sheet[]> {
     const target = (rels.get(rid) ?? `worksheets/sheet${i + 1}.xml`).replace(/^\/?(xl\/)?/, "");
     const text = await readPart(zip, buf, "xl/" + target);
     if (!text) continue;
-    sheets.push({ name: node.getAttribute("name") ?? `Sheet ${i + 1}`, rows: sheetRows(parse(text), shared) });
+    sheets.push({
+      name: node.getAttribute("name") ?? `Sheet ${i + 1}`,
+      ...sheetGrid(parse(text), shared, styleMarked),
+    });
   }
   return sheets;
 }

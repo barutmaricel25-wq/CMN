@@ -8,7 +8,7 @@ import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { adjustStock } from "@/lib/actions";
 import { peso, brandName } from "@/lib/util";
-import { CATEGORIES, Location, Product } from "@/lib/types";
+import { CATEGORIES, categoriesOf, Location, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import PinModal from "@/components/PinModal";
 
@@ -23,6 +23,11 @@ export default function InventoryPage() {
   const [pinned, setPinned] = useState<null | { approved_by: string }>(null);
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
+
+  const categories = useMemo(() => {
+    const used = categoriesOf(db.products.filter((p) => p.active));
+    return used.length ? used : [...CATEGORIES];
+  }, [db.products]);
 
   const myBranchId = session?.branch_id ?? "";
   const viewBranchId = view === "" ? myBranchId : view;
@@ -117,7 +122,7 @@ export default function InventoryPage() {
         <input className="input" placeholder="Search name / brand…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           <input type="checkbox" className="w-5 h-5" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
