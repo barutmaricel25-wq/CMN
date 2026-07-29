@@ -48,6 +48,12 @@ select current_user,
 
 Run the setup SQL again once that's sorted.
 
+### Later changes to the database
+
+If a change adds a column, there will be another file in `supabase/migrations/`.
+Run it the same way — SQL Editor → New query → paste → Run. They are safe to
+run twice.
+
 ## Step 3 — Get the two keys
 
 1. Left menu → **Project Settings** → **API**.

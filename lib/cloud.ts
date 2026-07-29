@@ -7,7 +7,7 @@
 // has to do three things: load that object, push whatever changed after each
 // edit, and re-load when another branch changes something.
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { DB } from "./types";
+import { DB, inBranchOrder } from "./types";
 import { buildSeed } from "./seed";
 
 // The Supabase settings page offers several addresses. Only the plain project
@@ -85,6 +85,8 @@ export async function fetchAll(): Promise<DB> {
   d.seeded_at = (stateOf("seeded_at") as string) ?? seed.seeded_at;
 
   const db = d as unknown as DB;
+  // Postgres hands rows back in no particular order; the shop has its own.
+  db.branches = inBranchOrder(db.branches);
   // Receipt numbers are handed out on the device. Re-derive each branch's
   // counter from the receipts already banked so two tills can't reuse a number
   // after one of them has been offline.

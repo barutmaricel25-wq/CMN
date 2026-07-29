@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
 import { deleteProducts } from "@/lib/actions";
 import { blankUser } from "@/lib/factories";
-import { Role, User } from "@/lib/types";
+import { inBranchOrder, Role, User } from "@/lib/types";
 
 type Tab = "settings" | "users" | "branches" | "audit";
 
@@ -285,15 +285,52 @@ function UsersTab({ canManage }: { canManage: boolean }) {
 
 function BranchesTab({ canManage }: { canManage: boolean }) {
   const db = useDB();
+
+  // Swap two branches' places in the list. Numbers are rewritten from scratch
+  // so an order set before this existed can't leave gaps or ties.
+  function swap(a: number, b: number) {
+    const order = db.branches.map((x) => x.id);
+    [order[a], order[b]] = [order[b], order[a]];
+    tx((d) => {
+      order.forEach((id, i) => {
+        const br = d.branches.find((x) => x.id === id);
+        if (br) br.sort_order = i + 1;
+      });
+      d.branches = inBranchOrder(d.branches);
+    });
+  }
+
   return (
     <div className="card divide-y divide-slate-100">
       {canManage && (
         <p className="px-4 py-2 text-xs text-slate-500 bg-slate-50">
-          Tap a name or address to edit — changes save when you leave the field and show everywhere (header, receipts, reports).
+          Tap a name or address to edit — changes save when you leave the field and show everywhere (header, receipts,
+          reports). Use ↑ ↓ to set the order the branches are listed in.
         </p>
       )}
-      {db.branches.map((b) => (
+      {db.branches.map((b, i) => (
         <div key={b.id} className="px-4 py-3">
+          {canManage && (
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-[11px] font-bold text-slate-400 w-4">{i + 1}.</span>
+              <button
+                className="btn-secondary !py-1 !px-2 text-xs disabled:opacity-30"
+                disabled={i === 0}
+                title="Move up the list"
+                onClick={() => swap(i, i - 1)}
+              >
+                ↑
+              </button>
+              <button
+                className="btn-secondary !py-1 !px-2 text-xs disabled:opacity-30"
+                disabled={i === db.branches.length - 1}
+                title="Move down the list"
+                onClick={() => swap(i, i + 1)}
+              >
+                ↓
+              </button>
+            </div>
+          )}
           {canManage ? (
             <>
               <input

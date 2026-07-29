@@ -26,14 +26,16 @@ function mulberry32(a: number) {
 
 const P = (n: number) => Math.round(n * 100); // pesos -> centavos
 
-// [name, address, lat, lng, has 2F stockroom]
+// [name, address, lat, lng, has 2F stockroom, listing order]
+// The ids come from the position here, so this list must not be reordered —
+// the last column decides how the branches are listed instead.
 const BRANCH_DEFS = [
-  ["Main Branch", "", 14.5995, 120.9842, true],
-  ["Unit 17", "", 14.6021, 120.9868, true],
-  ["Unit 20", "", 14.5958, 120.9812, true],
-  ["Unit 10-11", "", 14.6042, 120.9825, true],
-  ["Unit 04-18", "", 14.5977, 120.9891, true],
-  ["Unit 16", "", 14.6008, 120.9799, false],
+  ["Main Branch", "", 14.5995, 120.9842, true, 1],
+  ["Unit 17", "", 14.6021, 120.9868, true, 3],
+  ["Unit 20", "", 14.5958, 120.9812, true, 2],
+  ["Unit 10-11", "", 14.6042, 120.9825, true, 5],
+  ["Unit 04-18", "", 14.5977, 120.9891, true, 6],
+  ["Unit 16", "", 14.6008, 120.9799, false, 4],
 ] as const;
 
 // Default low-stock threshold by unit type (bulky = lower, small = higher).
@@ -70,8 +72,9 @@ export function buildSeed(): DB {
     geofence_lng: b[3],
     geofence_radius_m: 120,
     has_stockroom: b[4],
+    sort_order: b[5],
     active: true,
-  }));
+  })).sort((a, b) => a.sort_order - b.sort_order);
 
   // HR defaults so payroll has numbers to work with (editable in Admin).
   const hr = (monthly: number, i: number, seedIdx: number) => ({

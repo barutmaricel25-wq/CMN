@@ -43,6 +43,8 @@ export interface Branch {
   geofence_radius_m: number;
   // false = no 2F stockroom: deliveries/transfers go straight to the store floor.
   has_stockroom: boolean;
+  // The order the branches are listed in, everywhere in the app.
+  sort_order: number;
   active: boolean;
 }
 
@@ -84,6 +86,14 @@ export const CATEGORIES = [
   "other",
 ] as const;
 export type Category = string;
+
+// Branches in the order the shop lists them. Anything without an order set
+// sorts after the rest rather than jumping to the front.
+export function inBranchOrder<T extends { sort_order?: number; name: string }>(branches: T[]): T[] {
+  return [...branches].sort(
+    (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999) || a.name.localeCompare(b.name)
+  );
+}
 
 // Every category actually in use, in the order a person would look for them.
 export function categoriesOf(products: { category: string }[]): string[] {

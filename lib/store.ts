@@ -7,7 +7,7 @@
 //   · device  — each device keeps its own copy in localStorage (demo mode)
 // Screens and actions are identical either way.
 import { useSyncExternalStore } from "react";
-import { DB } from "./types";
+import { DB, inBranchOrder } from "./types";
 import { buildSeed } from "./seed";
 import { cloudEnabled, cloudReady, fetchAll, pushAll, pushDiff, subscribeRealtime } from "./cloud";
 
@@ -30,11 +30,16 @@ function normalize(raw: unknown): DB {
   // could even sign in — so fall back to the seed rather than showing a blank
   // screen forever.
   const savedBranches = arr(d.branches, seed.branches);
-  d.branches = (savedBranches.length ? savedBranches : seed.branches).map((b) => ({
-    ...b,
-    has_stockroom: b.has_stockroom ?? true,
-    address: b.address ?? "",
-  }));
+  // Devices saved before branches had a listing order get it back by name.
+  const orderByName = new Map(seed.branches.map((b) => [b.name.toLowerCase(), b.sort_order]));
+  d.branches = inBranchOrder(
+    (savedBranches.length ? savedBranches : seed.branches).map((b) => ({
+      ...b,
+      has_stockroom: b.has_stockroom ?? true,
+      address: b.address ?? "",
+      sort_order: b.sort_order ?? orderByName.get((b.name ?? "").toLowerCase()) ?? 999,
+    }))
+  );
 
   const savedUsers = arr(d.users, seed.users);
   d.users = (savedUsers.length ? savedUsers : seed.users).map((u) => ({
