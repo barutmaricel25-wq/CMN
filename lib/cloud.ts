@@ -63,7 +63,8 @@ const rowsOf = (d: DB, t: Table) => (d[t] as unknown as Row[]) ?? [];
 // without one, Postgres is free to answer each page differently, which skips
 // some rows and repeats others. Hence the explicit order by id, the check that
 // the pages add up to the row count the server reports, and the de-duplication.
-async function selectAll(table: string): Promise<Row[]> {
+// Every table is keyed by "id" except app_state, which is keyed by "key".
+async function selectAll(table: string, keyCol = "id"): Promise<Row[]> {
   const size = 1000;
   const seen = new Map<string, Row>();
   let total: number | null = null;
@@ -72,11 +73,11 @@ async function selectAll(table: string): Promise<Row[]> {
     const { data, error, count } = await sb()
       .from(table)
       .select("*", { count: "exact" })
-      .order("id", { ascending: true })
+      .order(keyCol, { ascending: true })
       .range(from, from + size - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
     if (total === null) total = count ?? null;
-    (data ?? []).forEach((r) => seen.set((r as Row).id, r as Row));
+    (data ?? []).forEach((r) => seen.set(String((r as Record<string, unknown>)[keyCol]), r as Row));
     if (!data || data.length < size) break;
   }
 
@@ -91,7 +92,7 @@ async function selectAll(table: string): Promise<Row[]> {
 export async function fetchAll(): Promise<DB> {
   const seed = buildSeed();
   const lists = await Promise.all(TABLES.map((t) => selectAll(t)));
-  const state = await selectAll("app_state");
+  const state = await selectAll("app_state", "key");
   const stateOf = (key: string) => state.find((r) => (r as { key?: string }).key === key)?.value;
 
   const d = { ...seed } as unknown as Record<string, unknown>;
