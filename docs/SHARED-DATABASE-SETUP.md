@@ -29,6 +29,25 @@ It takes about ten minutes and costs nothing at CMN's size.
 That builds every table the app needs, switches on live updates, and sets the
 access rules.
 
+### If step 2 says "cannot execute CREATE TABLE in a read-only transaction"
+
+The SQL is fine — the editor is refusing to write. Run this first to find out
+why (it only reads, so it works even in read-only mode):
+
+```sql
+select current_user,
+       current_setting('transaction_read_only') as read_only,
+       pg_is_in_recovery()                      as on_a_replica;
+```
+
+| What comes back | What it means | What to do |
+|---|---|---|
+| `current_user` is `supabase_read_only_user` | Your account has the Read-Only role in the organisation | Organisation → **Team** → set your role to **Owner** or **Administrator**, then sign out and back in |
+| `on_a_replica` is `true` | The editor is pointed at a read replica, which can never be written to | Use the database selector at the top of the SQL Editor and pick the **Primary** database |
+| `read_only` is `on`, user is `postgres`, not a replica | The project itself is read-only — usually still finishing setup, restoring, or paused | Wait a few minutes, reload the dashboard, and check the project isn't **Paused** on the Home page. If it persists, Project Settings → **Usage** to see whether the database is out of space |
+
+Run the setup SQL again once that's sorted.
+
 ## Step 3 — Get the two keys
 
 1. Left menu → **Project Settings** → **API**.
