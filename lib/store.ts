@@ -305,6 +305,33 @@ export function tx(fn: (d: DB) => void) {
   }
 }
 
+// Force a sync by hand. The app does this on its own, but after a wobbly
+// connection it helps to be able to press something and watch what happens.
+export async function refreshFromCloud(): Promise<string> {
+  if (!cloudEnabled) return "This device isn't connected to a shared database.";
+  try {
+    setSync("saving");
+    await pull();
+    setSync("online");
+    const d = db ?? load();
+    return `✅ Refreshed — ${d.products.filter((p) => p.active).length} products, ${d.users.length} staff.`;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    setSync("error", msg);
+    return `⚠ Could not refresh: ${msg}`;
+  }
+}
+
+export async function uploadToCloud(): Promise<string> {
+  if (!cloudEnabled) return "This device isn't connected to a shared database.";
+  await fullUpload();
+  if (syncState === "online") {
+    const d = db ?? load();
+    return `✅ Sent up — ${d.products.filter((p) => p.active).length} products, ${d.users.length} staff. Every branch has this now.`;
+  }
+  return `⚠ Could not send: ${syncError}`;
+}
+
 // Admin → start over. On a shared database this only refreshes this device;
 // wiping six branches' books is not something a button should do.
 export function resetDemo() {

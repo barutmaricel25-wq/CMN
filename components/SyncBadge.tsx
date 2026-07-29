@@ -1,6 +1,7 @@
 "use client";
 // Tells staff at a glance whether this device is on the shared database.
-import { useSync } from "@/lib/store";
+import { useState } from "react";
+import { refreshFromCloud, uploadToCloud, useSync } from "@/lib/store";
 
 export default function SyncBadge({ full = false }: { full?: boolean }) {
   const { shared, state, error } = useSync();
@@ -46,6 +47,38 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
           : "All six branches share one set of books — a sale or stock change here shows everywhere within seconds."}
       </p>
       {error && <p className="text-[11px] text-red-600 mt-1 break-words">{error}</p>}
+      <SyncButtons />
     </div>
+  );
+}
+
+// The app syncs on its own; these are for when you want to make it happen now
+// and see the result rather than wonder.
+function SyncButtons() {
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const run = async (what: "down" | "up") => {
+    setBusy(what);
+    setMsg("");
+    setMsg(await (what === "down" ? refreshFromCloud() : uploadToCloud()));
+    setBusy("");
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button className="btn-secondary !py-2 text-xs" disabled={!!busy} onClick={() => run("down")}>
+          {busy === "down" ? "Getting…" : "⬇️ Get latest"}
+        </button>
+        <button className="btn-secondary !py-2 text-xs" disabled={!!busy} onClick={() => run("up")}>
+          {busy === "up" ? "Sending…" : "⬆️ Send mine up"}
+        </button>
+      </div>
+      <p className="text-[10px] text-slate-400 mt-1">
+        Get latest = take what the other branches have. Send mine up = push what is on this device to everyone.
+      </p>
+      {msg && <p className="text-xs font-semibold mt-1 break-words">{msg}</p>}
+    </>
   );
 }
