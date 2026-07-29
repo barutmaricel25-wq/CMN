@@ -192,12 +192,18 @@ function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> 
   ]);
 }
 
+// Counts local edits, so a refresh that was already in flight when someone
+// typed cannot land on top of what they just did.
+let localEdits = 0;
+
 // Pull the shared database in, replacing whatever this device had cached.
 async function pull() {
+  const startedAt = localEdits;
   const fresh = await withTimeout(fetchAll(), 20000, "Loading");
   if (!fresh.branches.length || !fresh.users.length) {
     throw new Error("The shared database has no branches or staff yet — keeping this device's copy.");
   }
+  if (localEdits !== startedAt) return; // edited while we were fetching
   db = fresh;
   lastPushed = clone(fresh);
   persist();
@@ -288,6 +294,7 @@ async function startCloud() {
 export function tx(fn: (d: DB) => void) {
   const d = load();
   fn(d);
+  localEdits++;
   db = { ...d }; // new reference so useSyncExternalStore re-renders
   persist();
   notify();

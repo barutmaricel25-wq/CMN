@@ -59,15 +59,33 @@ type Row = { id: string } & Record<string, unknown>;
 const rowsOf = (d: DB, t: Table) => (d[t] as unknown as Row[]) ?? [];
 
 // Supabase caps a single response at 1000 rows, and the catalogue is bigger.
+// Reading it in pages only works if the rows come back in a settled order —
+// without one, Postgres is free to answer each page differently, which skips
+// some rows and repeats others. Hence the explicit order by id, the check that
+// the pages add up to the row count the server reports, and the de-duplication.
 async function selectAll(table: string): Promise<Row[]> {
-  const out: Row[] = [];
   const size = 1000;
+  const seen = new Map<string, Row>();
+  let total: number | null = null;
+
   for (let from = 0; ; from += size) {
-    const { data, error } = await sb().from(table).select("*").range(from, from + size - 1);
+    const { data, error, count } = await sb()
+      .from(table)
+      .select("*", { count: "exact" })
+      .order("id", { ascending: true })
+      .range(from, from + size - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
-    out.push(...((data ?? []) as Row[]));
-    if (!data || data.length < size) return out;
+    if (total === null) total = count ?? null;
+    (data ?? []).forEach((r) => seen.set((r as Row).id, r as Row));
+    if (!data || data.length < size) break;
   }
+
+  const rows = [...seen.values()];
+  if (total !== null && rows.length < total) {
+    // Better to stay on the copy we already have than to show a short list.
+    throw new Error(`${table}: only ${rows.length} of ${total} rows came back — not using an incomplete read`);
+  }
+  return rows;
 }
 
 export async function fetchAll(): Promise<DB> {
