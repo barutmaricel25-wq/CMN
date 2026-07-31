@@ -33,17 +33,22 @@ export default function ProductsPage() {
     if (qq) setQ(qq);
   }, []);
 
+  const searching = q.trim() !== "";
+
   const rows = useMemo(
     () =>
       db.products
         .filter((p) => p.active)
-        .filter((p) => !cat || p.category === cat)
+        // The category filter is for browsing. While searching it is ignored,
+        // because hiding a match behind it makes a product look missing — and
+        // the next thing anyone does is add it again.
+        .filter((p) => searching || !cat || p.category === cat)
         // Matches on everything about the product at once, so typing what the
         // list shows ("aozi kitten") finds it.
         .filter((p) => matchesSearch(p, q))
         // Alphabetical by brand, then product name (blank brands last).
         .sort(compareByBrand),
-    [db.products, q, cat]
+    [db.products, q, cat, searching]
   );
 
   // The closest matches first — alphabetical order would show whatever happens
@@ -63,7 +68,11 @@ export default function ProductsPage() {
     const out: { brand: string; items: Product[] }[] = [];
     rows.slice(0, SHOW_LIMIT).forEach((p) => {
       const last = out[out.length - 1];
-      if (last && last.brand === p.brand) last.items.push(p);
+      // "AOZI CAT" and "Aozi Cat" read as the same heading once shown in
+      // capitals, so keep them in one block rather than two identical ones.
+      const same = (a: string, b: string) =>
+        a.toLowerCase().replace(/[^a-z0-9]/g, "") === b.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (last && same(last.brand, p.brand)) last.items.push(p);
       else out.push({ brand: p.brand, items: [p] });
     });
     return out;
@@ -232,6 +241,12 @@ export default function ProductsPage() {
             a whole category.
           </p>
         </div>
+      )}
+
+      {searching && cat && (
+        <p className="text-xs text-amber-700 font-semibold px-1">
+          Searching every category — the “{cat}” filter is paused so nothing is hidden from you.
+        </p>
       )}
 
       <div className="text-xs text-slate-500 px-1">
@@ -467,6 +482,23 @@ function BrandEditor({
     );
   };
 
+  // Warn before making a second copy of something already in the catalogue —
+  // usually the same item filed under another category.
+  const clashes = types
+    .filter((t) => t.name.trim())
+    .flatMap((t) =>
+      db.products
+        .filter(
+          (x) =>
+            x.active &&
+            x.id !== t.id &&
+            x.name.trim().toLowerCase() === t.name.trim().toLowerCase() &&
+            x.brand.trim().toLowerCase() === brandInput.trim().toLowerCase() &&
+            x.category.trim().toLowerCase() !== catInput.trim().toLowerCase()
+        )
+        .map((x) => `${t.name.trim()} — already in “${x.category}”`)
+    );
+
   const named = types.filter((t) => t.name.trim());
   const canSave = brandInput.trim() !== "" && catInput.trim() !== "" && named.length > 0;
 
@@ -585,6 +617,21 @@ function BrandEditor({
             + Add another type
           </button>
         </div>
+
+        {clashes.length > 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <div className="font-bold text-sm text-amber-900">Already in the price list</div>
+            <ul className="text-xs text-amber-800 mt-1 list-disc pl-4">
+              {clashes.slice(0, 5).map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-amber-700 mt-1">
+              Saving makes a second copy. If you meant to change the existing one, cancel and search for it instead —
+              searching now looks in every category.
+            </p>
+          </div>
+        )}
 
         <div className="flex gap-2 pt-2">
           <button className="btn-ghost flex-1" onClick={onClose}>
