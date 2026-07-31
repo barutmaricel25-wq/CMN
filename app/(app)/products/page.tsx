@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveBrand, deleteProducts } from "@/lib/actions";
-import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode, matchesSearch, searchScore } from "@/lib/util";
+import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode, matchesSearch, searchScore, perUnitLabel } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, categoriesOf, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
@@ -383,7 +383,7 @@ function PriceDetail({ p, canEdit, onClose, onEdit }: { p: Product; canEdit: boo
           <PriceBox label="ORD W/S" value={p.ord_ws_price ? peso(p.ord_ws_price) : "—"} />
           <PriceBox label="Whole sale" value={peso(p.wholesale_price)} />
           <PriceBox label="Last price (Suki)" value={p.suki_price ? peso(p.suki_price) : "—"} tone="amber" />
-          <PriceBox label="Per kilo" value={p.per_kilo ? peso(p.per_kilo) : "—"} />
+          <PriceBox label={perUnitLabel(p.category)} value={p.per_kilo ? peso(p.per_kilo) : "—"} />
           {canEdit && <PriceBox label="Unit price (cost)" value={peso(p.cost_price)} tone="slate" wide />}
         </div>
         <div className="flex gap-2 mt-4">
@@ -549,7 +549,7 @@ function BrandEditor({
                   {priceField(i, "Wholesale", "wholesale_price")}
                   {priceField(i, "Last price", "suki_price")}
                   {priceField(i, "Selling price", "retail_price")}
-                  {priceField(i, "Per kilo", "per_kilo")}
+                  {priceField(i, perUnitLabel(catInput), "per_kilo")}
                 </div>
                 <details>
                   <summary className="text-xs text-slate-500 cursor-pointer">More</summary>

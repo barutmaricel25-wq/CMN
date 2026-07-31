@@ -97,6 +97,12 @@ export function searchScore(p: Searchable, q: string): number {
   return 5;
 }
 
+// Medicines are priced by the piece, not by weight, so the last price column
+// is labelled to match whichever the category is.
+export function perUnitLabel(category: string): string {
+  return /medicine|\bmeds?\b/i.test(category || "") ? "Per piece" : "Per kilo";
+}
+
 // Products imported without a printed barcode get an internal code so the app
 // still has something unique to scan against. They aren't real barcodes, so
 // they're not worth showing to staff.
