@@ -47,6 +47,56 @@ export function compareByBrand(
   return ab.localeCompare(bb) || a.name.localeCompare(b.name);
 }
 
+// ---------- Searching the catalogue ----------
+// The price list shows a product as "BRAND Type" across two lines, so people
+// type what they see ("aozi kitten"). Searching brand and name separately can
+// never match that, so match against everything about the product at once and
+// require each word typed to appear somewhere — in any order.
+type Searchable = {
+  name: string;
+  brand: string;
+  size_variant?: string;
+  sku?: string;
+  barcode?: string;
+  category?: string;
+};
+
+const flatten = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+function haystack(p: Searchable): string {
+  return flatten([p.brand, p.name, p.size_variant, p.sku, p.barcode, p.category].filter(Boolean).join(" "));
+}
+
+const terms = (q: string) => flatten(q).split(" ").filter(Boolean);
+
+export function matchesSearch(p: Searchable, q: string): boolean {
+  const t = terms(q);
+  if (!t.length) return true;
+  const hay = haystack(p);
+  return t.every((term) => hay.includes(term));
+}
+
+// Lower is a better match. Used to put the likeliest answers at the top of the
+// suggestions instead of whatever happens to sort first alphabetically.
+export function searchScore(p: Searchable, q: string): number {
+  const t = terms(q);
+  if (!t.length) return 99;
+  const query = t.join(" ");
+  const name = flatten(p.name);
+  const brand = flatten(p.brand);
+  const label = flatten(`${p.brand} ${p.name}`);
+  const hay = haystack(p);
+
+  if (flatten(p.barcode ?? "") === query || flatten(p.sku ?? "") === query) return 0;
+  if (name === query || label === query) return 1;
+  if (label.startsWith(query) || name.startsWith(query)) return 2;
+  if (brand.startsWith(query)) return 3;
+  // Every word typed starts a word in the product — "aozi kit" for "Aozi Kitten".
+  const words = hay.split(" ");
+  if (t.every((term) => words.some((w) => w.startsWith(term)))) return 4;
+  return 5;
+}
+
 // Products imported without a printed barcode get an internal code so the app
 // still has something unique to scan against. They aren't real barcodes, so
 // they're not worth showing to staff.

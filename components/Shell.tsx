@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDB } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
 import { setSession, useSession } from "@/lib/session";
-import { brandName } from "@/lib/util";
+import { brandName, matchesSearch, searchScore } from "@/lib/util";
 import { Role } from "@/lib/types";
 
 // `roles` limits who sees the link; omit to show it to everyone.
@@ -245,10 +245,10 @@ function GlobalSearch({ role }: { role?: Role }) {
   const term = q.trim().toLowerCase();
   const screens = term.length >= 2 ? NAV.filter((l) => (!l.roles || (role && l.roles.includes(role))) && l.label.toLowerCase().includes(term)).slice(0, 3) : [];
   const products = term.length >= 2
-    ? db.products.filter((p) =>
-        p.active &&
-        (p.name.toLowerCase().includes(term) || p.brand.toLowerCase().includes(term) || p.barcode.includes(term) || p.sku.toLowerCase().includes(term))
-      ).slice(0, 6)
+    ? db.products
+        .filter((p) => p.active && matchesSearch(p, term))
+        .sort((a, b) => searchScore(a, term) - searchScore(b, term))
+        .slice(0, 6)
     : [];
   const customers = term.length >= 2
     ? db.customers.filter((c) => c.active && (c.name.toLowerCase().includes(term) || c.phone.includes(term))).slice(0, 4)

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { saveBrand, deleteProducts } from "@/lib/actions";
-import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode } from "@/lib/util";
+import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode, matchesSearch, searchScore } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, categoriesOf, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
@@ -38,17 +38,24 @@ export default function ProductsPage() {
       db.products
         .filter((p) => p.active)
         .filter((p) => !cat || p.category === cat)
-        .filter(
-          (p) =>
-            !q ||
-            p.name.toLowerCase().includes(q.toLowerCase()) ||
-            p.brand.toLowerCase().includes(q.toLowerCase()) ||
-            p.barcode === q ||
-            p.sku.toLowerCase() === q.toLowerCase()
-        )
+        // Matches on everything about the product at once, so typing what the
+        // list shows ("aozi kitten") finds it.
+        .filter((p) => matchesSearch(p, q))
         // Alphabetical by brand, then product name (blank brands last).
         .sort(compareByBrand),
     [db.products, q, cat]
+  );
+
+  // The closest matches first — alphabetical order would show whatever happens
+  // to sort earliest, which rarely resembles what was typed.
+  const suggestions = useMemo(
+    () =>
+      q.trim().length < 2
+        ? []
+        : [...rows]
+            .sort((a, b) => searchScore(a, q) - searchScore(b, q) || compareByBrand(a, b))
+            .slice(0, 8),
+    [rows, q]
   );
 
   // Brand blocks, alphabetical, exactly how the Excel price list is laid out.
@@ -173,9 +180,9 @@ export default function ProductsPage() {
             onBlur={() => setTimeout(() => setFocused(false), 150)}
           />
           {/* Typeahead: possible matches while typing */}
-          {focused && q.trim().length >= 1 && rows.length > 0 && (
+          {focused && q.trim().length >= 2 && suggestions.length > 0 && (
             <div className="absolute left-0 right-0 top-full mt-1 z-30 card max-h-72 overflow-y-auto">
-              {rows.slice(0, 8).map((p) => (
+              {suggestions.map((p) => (
                 <button
                   key={p.id}
                   className="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-2"
@@ -189,7 +196,11 @@ export default function ProductsPage() {
                   <span className="font-bold text-sm text-orange-700 tabular-nums whitespace-nowrap">{peso(p.retail_price)}</span>
                 </button>
               ))}
-              {rows.length > 8 && <div className="px-3 py-1.5 text-[11px] text-slate-400">+{rows.length - 8} more — keep typing to narrow</div>}
+              {rows.length > suggestions.length && (
+                <div className="px-3 py-1.5 text-[11px] text-slate-400">
+                  +{rows.length - suggestions.length} more — keep typing to narrow
+                </div>
+              )}
             </div>
           )}
         </div>
