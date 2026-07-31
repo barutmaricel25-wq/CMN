@@ -500,7 +500,11 @@ function BrandEditor({
     );
 
   const named = types.filter((t) => t.name.trim());
-  const canSave = brandInput.trim() !== "" && catInput.trim() !== "" && named.length > 0;
+  // A brand is optional: medicines are filed under letter headings, and plenty
+  // of items came out of the price list with the brand column empty. Requiring
+  // one here left Save greyed out for all of them, so edits appeared to do
+  // nothing at all.
+  const canSave = catInput.trim() !== "" && named.length > 0;
 
   function save() {
     const payload = named.map((t) => ({
@@ -514,7 +518,8 @@ function BrandEditor({
     const blanks = types.filter((t) => !t.name.trim() && items.some((x) => x.id === t.id)).map((t) => t.id);
     saveBrand(payload, [...removed, ...blanks], session!.user_id);
     // Jump the list to the brand just saved — the catalogue is long.
-    onSaved(`✅ Saved ${brandInput.trim()} — ${payload.length} type${payload.length !== 1 ? "s" : ""}`, brandInput.trim());
+    const what = brandInput.trim() || payload[0]?.name || "";
+    onSaved(`✅ Saved ${what} — ${payload.length} type${payload.length !== 1 ? "s" : ""}`, what);
   }
 
   function deleteBrand() {
@@ -536,7 +541,7 @@ function BrandEditor({
         <h3 className="font-bold text-lg">{items.length ? "Edit brand" : "New brand"}</h3>
 
         <div>
-          <label className="label">Brand name</label>
+          <label className="label">Brand name <span className="font-normal text-slate-400">— leave blank for medicines and unbranded items</span></label>
           <input
             className="input font-bold"
             placeholder="e.g. AOZI CAT"
