@@ -385,7 +385,7 @@ export default function ProductsPage() {
 function PriceDetail({ p, canEdit, onClose, onEdit }: { p: Product; canEdit: boolean; onClose: () => void; onEdit: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="text-xl font-bold">{brandName(p)}</div>
         <div className="text-sm text-slate-500 mb-4">{p.size_variant} · {p.category} · {p.sku} · {p.barcode}</div>
 

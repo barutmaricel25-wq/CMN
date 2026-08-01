@@ -121,7 +121,7 @@ export default function TransfersPage() {
 
       {confirmT && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setConfirmT(null)}>
-          <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-md p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold mb-1">{confirmT.status === "requested" ? "Confirm quantities to SEND" : "Confirm quantities RECEIVED"}</h3>
             <p className="text-xs text-slate-500 mb-3">
               {confirmT.status === "requested" ? "Deducted from your 2F stockroom." : "Added to your 2F stockroom. Differences vs sent qty are flagged."}

@@ -226,7 +226,7 @@ export default function InventoryPage() {
 
       {adjust && pinned && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setAdjust(null); setPinned(null); }}>
-          <div className="card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold">{adjust.product.name}</h3>
             <p className="text-sm text-slate-500 mb-3">Adjust {adjust.location} qty (use − for damage/expiry)</p>
             <label className="label">Change (+/−)</label>

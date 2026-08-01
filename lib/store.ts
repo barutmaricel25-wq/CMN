@@ -28,20 +28,31 @@ const notify = () => listeners.forEach((l) => l());
 
 // Upgrade a database saved by an older build: backfill collections and fields
 // added since, so existing devices keep their data instead of crashing.
-function normalize(raw: unknown): DB {
+//
+// This has to run on rows from the shared database too, not only on the copy
+// saved here: a customer written before branches were added comes back from
+// Supabase without one, and every screen that groups by branch then loses it.
+//
+// fillEmpty is the one difference between the two. A device with nothing saved
+// should get the demo data to look at; an empty list in the shared database is
+// a real answer — the shop may have deleted every product — and must never be
+// quietly refilled with demo rows.
+function normalize(raw: unknown, fillEmpty = true): DB {
   const d = (raw ?? {}) as Partial<DB> & Record<string, unknown>;
   const seed = buildSeed();
 
   const arr = <T,>(v: unknown, fallback: T[] = []): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
+  // "Nothing saved" means fall back to the seed; "deliberately empty" doesn't.
+  const orSeed = <T,>(list: T[], seedList: T[]): T[] => (list.length || !fillEmpty ? list : seedList);
 
   // An empty branches/users list means the saved copy is unusable — nobody
   // could even sign in — so fall back to the seed rather than showing a blank
   // screen forever.
-  const savedBranches = arr(d.branches, seed.branches);
+  const savedBranches = orSeed(arr(d.branches, seed.branches), seed.branches);
   // Devices saved before branches had a listing order get it back by name.
   const orderByName = new Map(seed.branches.map((b) => [b.name.toLowerCase(), b.sort_order]));
   d.branches = inBranchOrder(
-    (savedBranches.length ? savedBranches : seed.branches).map((b) => ({
+    savedBranches.map((b) => ({
       ...b,
       has_stockroom: b.has_stockroom ?? true,
       address: b.address ?? "",
@@ -49,8 +60,8 @@ function normalize(raw: unknown): DB {
     }))
   );
 
-  const savedUsers = arr(d.users, seed.users);
-  d.users = (savedUsers.length ? savedUsers : seed.users).map((u) => ({
+  const savedUsers = orSeed(arr(d.users, seed.users), seed.users);
+  d.users = savedUsers.map((u) => ({
     ...u,
     contact_number: u.contact_number ?? "",
     address: u.address ?? "",
@@ -65,13 +76,13 @@ function normalize(raw: unknown): DB {
   }));
 
   // Products gained ORD W/S and per-kilo columns; reseed if the catalog is empty.
-  const products = arr(d.products, seed.products);
+  const products = orSeed(arr(d.products, seed.products), seed.products);
   // The whole ACCESSORIES sheet originally imported as "collars/leash/harness".
   // Move the brushes, feeders, balls and mats to their real categories on
   // devices that already installed the app — only for rows still sitting in
   // that bucket, so a category anyone edited by hand is left alone.
   const seedCategory = new Map(seed.products.map((p) => [p.sku, p.category]));
-  d.products = (products.length ? products : seed.products).map((p) => {
+  d.products = products.map((p) => {
     const correct = seedCategory.get(p.sku);
     const category =
       p.category === "collars/leash/harness" && correct && correct !== p.category
@@ -83,8 +94,15 @@ function normalize(raw: unknown): DB {
   // Customers used to be shared across the whole business. The ones already on
   // file are Unit 17's.
   const unit17 = d.branches.find((b) => b.name.toLowerCase() === "unit 17")?.id ?? d.branches[0]?.id ?? "";
-  d.customers = arr(d.customers, seed.customers).map((c) => ({
+  d.customers = orSeed(arr(d.customers, seed.customers), seed.customers).map((c) => ({
     ...c,
+    // Text boxes need a string to hold on to. A field left undefined makes its
+    // input stop tracking what the record actually says, which is how a value
+    // ends up on the list but not in the form that edits it.
+    name: c.name ?? "",
+    phone: c.phone ?? "",
+    address: c.address ?? "",
+    notes: c.notes ?? "",
     payment_terms: c.payment_terms ?? "cash",
     cp_number: c.cp_number ?? "",
     pdc_terms: c.pdc_terms ?? "none",
@@ -102,7 +120,7 @@ function normalize(raw: unknown): DB {
   }));
 
   // Collections introduced later.
-  d.inventory = arr(d.inventory, seed.inventory);
+  d.inventory = orSeed(arr(d.inventory, seed.inventory), seed.inventory);
   d.stock_movements = arr<DB["stock_movements"][number]>(d.stock_movements);
   d.delivery_items = arr<DB["delivery_items"][number]>(d.delivery_items);
   d.transfers = arr<DB["transfers"][number]>(d.transfers);
@@ -215,10 +233,13 @@ let localEdits = 0;
 async function pull() {
   if (unsent) return; // this device has edits the server hasn't got yet
   const startedAt = localEdits;
-  const { db: fresh, watermark } = await withTimeout(fetchAll(), 90000, "Loading");
-  if (!fresh.branches.length || !fresh.users.length) {
+  const { db: raw, watermark } = await withTimeout(fetchAll(), 90000, "Loading");
+  if (!raw.branches.length || !raw.users.length) {
     throw new Error("The shared database has no branches or staff yet — keeping this device's copy.");
   }
+  // Rows written before a field existed come back without it; fill them in
+  // here, exactly as for a copy saved by an older build.
+  const fresh = normalize(raw, false);
   if (localEdits !== startedAt) return; // edited while we were fetching
   db = fresh;
   lastPushed = clone(fresh);
@@ -280,7 +301,8 @@ async function catchUp() {
   const touched = applyChanges(d, changes);
   writeMark(changes.watermark);
   if (touched) {
-    db = { ...d };
+    // Changed rows arrive raw from the server, so upgrade the shape again.
+    db = normalize({ ...d }, false);
     lastPushed = clone(db);
     persist();
     notify();

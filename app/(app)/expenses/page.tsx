@@ -135,7 +135,7 @@ export default function ExpensesPage() {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div className="card w-full max-w-sm p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-sm p-5 space-y-2 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg">{db.expenses.some((x) => x.id === editing.id) ? "Edit expense" : "New expense"}</h3>
             <div>
               <label className="label">Category</label>

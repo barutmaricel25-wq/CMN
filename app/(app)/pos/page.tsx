@@ -309,7 +309,7 @@ function PaymentSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold mb-1">Payment</h3>
         <div className="text-3xl font-extrabold text-orange-700 mb-4 tabular-nums">{peso(total)}</div>
         <div className="grid grid-cols-3 gap-2 mb-4">

@@ -148,7 +148,7 @@ export default function CustomersPage() {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditing(null); setConfirmRemove(false); }}>
-          <div className="card w-full max-w-md p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-md p-5 space-y-2 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg">{editing.name ? "Edit customer" : "New customer"}</h3>
             <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             <div className="flex gap-2">
@@ -405,7 +405,7 @@ function CustomerPDC({ customer }: { customer: Customer }) {
 
       {adding && draft && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setAdding(false)}>
-          <div className="card w-full max-w-sm p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-sm p-5 space-y-2 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold">Record cheque — {customer.name}</h3>
             {(customer.pdc_terms ?? "none") !== "none" && (
               <p className="text-xs text-slate-500">
