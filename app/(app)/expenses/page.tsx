@@ -1,5 +1,6 @@
 "use client";
-// Expenses by category (store rental, electricity, water, daily expenses).
+// Expenses by category (store rental, electricity, water, telephone bills,
+// plastic bags, daily expenses).
 // Managers record for their branch; the owner sees and filters every branch.
 import { useMemo, useState } from "react";
 import { useDB } from "@/lib/store";
@@ -13,8 +14,21 @@ const CAT_ICON: Record<ExpenseCategory, string> = {
   "store rental": "🏠",
   electricity: "💡",
   water: "🚰",
+  "telephone bills": "☎️",
+  "plastic bags": "🛍️",
   "daily expenses": "🧾",
   other: "📌",
+};
+
+// What to write in the note, in the shop's own terms.
+const NOTE_HINT: Record<ExpenseCategory, string> = {
+  "store rental": "e.g. October rent",
+  electricity: "e.g. Meralco bill October",
+  water: "e.g. Maynilad bill October",
+  "telephone bills": "e.g. PLDT landline October",
+  "plastic bags": "e.g. 1,000 pcs large — Divisoria",
+  "daily expenses": "e.g. Meals, tricycle fare",
+  other: "e.g. Repair of freezer, permit fee",
 };
 
 export default function ExpensesPage() {
@@ -167,7 +181,7 @@ export default function ExpensesPage() {
               </label>
               <input
                 className="input"
-                placeholder={editing.category === "other" ? "e.g. Tricycle fare, repair of freezer, permit fee" : "e.g. Meralco bill October"}
+                placeholder={NOTE_HINT[editing.category]}
                 value={editing.note}
                 onChange={(e) => setEditing({ ...editing, note: e.target.value })}
               />

@@ -302,7 +302,7 @@ async function catchUp() {
   writeMark(changes.watermark);
   if (touched) {
     // Changed rows arrive raw from the server, so upgrade the shape again.
-    db = normalize({ ...d }, false);
+    db = freshLists(normalize({ ...d }, false));
     lastPushed = clone(db);
     persist();
     notify();
@@ -407,12 +407,26 @@ async function startCloud() {
   }
 }
 
+// A copy whose lists are new arrays, not the same ones with different contents.
+// Screens memoise their work against db.expenses, db.inventory and the rest, so
+// a list that was edited in place looks unchanged to them and they keep showing
+// what was there before — an expense recorded but not listed until a reload.
+// Copying the arrays is only the references, cheap even for the big tables.
+function freshLists(d: DB): DB {
+  const out = { ...d } as unknown as Record<string, unknown>;
+  for (const k of Object.keys(out)) {
+    const v = out[k];
+    if (Array.isArray(v)) out[k] = [...v];
+  }
+  return out as unknown as DB;
+}
+
 // All mutations go through tx(): mutate a draft, then persist + notify.
 export function tx(fn: (d: DB) => void) {
   const d = load();
   fn(d);
   localEdits++;
-  db = { ...d }; // new reference so useSyncExternalStore re-renders
+  db = freshLists(d); // new references so every screen re-reads its lists
   persist();
   notify();
   if (cloudEnabled) {

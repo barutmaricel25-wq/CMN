@@ -299,6 +299,8 @@ export const EXPENSE_CATEGORIES = [
   "store rental",
   "electricity",
   "water",
+  "telephone bills",
+  "plastic bags",
   "daily expenses",
   "other",
 ] as const;
