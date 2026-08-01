@@ -150,22 +150,37 @@ export default function CustomersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditing(null); setConfirmRemove(false); }}>
           <div className="card w-full max-w-md p-5 space-y-2 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg">{editing.name ? "Edit customer" : "New customer"}</h3>
-            <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
-            <div className="flex gap-2">
-              <input className="input flex-1" placeholder="Phone" value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
-              <select className="input w-36" value={editing.type} onChange={(e) => setEditing({ ...editing, type: e.target.value as CustomerType })}>
-                <option value="retail">Online Reseller</option>
-                <option value="suki">Suki</option>
-                <option value="wholesaler">Wholesaler</option>
-              </select>
+            {/* Every box is labelled. A placeholder disappears the moment there
+                is something in the box, and then a stray character sitting in a
+                field nobody can name is impossible to track down. */}
+            <div>
+              <label className="label">Name</label>
+              <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             </div>
-            <input
-              className="input"
-              inputMode="tel"
-              placeholder="CP number (mobile)"
-              value={editing.cp_number}
-              onChange={(e) => setEditing({ ...editing, cp_number: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="label">Phone</label>
+                <input className="input" placeholder="Phone" value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
+              </div>
+              <div className="w-36">
+                <label className="label">Type</label>
+                <select className="input" value={editing.type} onChange={(e) => setEditing({ ...editing, type: e.target.value as CustomerType })}>
+                  <option value="retail">Online Reseller</option>
+                  <option value="suki">Suki</option>
+                  <option value="wholesaler">Wholesaler</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="label">CP number (mobile)</label>
+              <input
+                className="input"
+                inputMode="tel"
+                placeholder="CP number (mobile)"
+                value={editing.cp_number}
+                onChange={(e) => setEditing({ ...editing, cp_number: e.target.value })}
+              />
+            </div>
             <div>
               <label className="label">Branch this customer belongs to</label>
               <select
@@ -179,7 +194,10 @@ export default function CustomersPage() {
                 ))}
               </select>
             </div>
-            <input className="input" placeholder="Address" value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
+            <div>
+              <label className="label">Address</label>
+              <input className="input" placeholder="Address" value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
+            </div>
             {editing.type !== "retail" && (
               <div>
                 <label className="label">Payment method</label>
@@ -215,7 +233,10 @@ export default function CustomersPage() {
                 )}
               </div>
             )}
-            <textarea className="input" placeholder="Notes (pets, preferences…)" value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
+            <div>
+              <label className="label">Notes</label>
+              <textarea className="input" placeholder="Notes (pets, preferences…)" value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
+            </div>
             <div className="flex gap-2 pt-1">
               <button className="btn-ghost flex-1" onClick={() => { setEditing(null); setConfirmRemove(false); }}>Cancel</button>
               <button
@@ -295,10 +316,14 @@ function CustomerSheet({ customer, onEdit, onClose }: { customer: Customer; onEd
             <h3 className="font-bold text-lg">{customer.name}</h3>
             <div className="text-xs text-slate-500">
               {CUSTOMER_TYPE_LABEL[customer.type]}
+              {` · ${db.branches.find((b) => b.id === customer.branch_id)?.name ?? "no branch"}`}
               {customer.cp_number && ` · 📱 ${customer.cp_number}`}
               {customer.phone && customer.phone !== customer.cp_number && ` · ${customer.phone}`}
               {customer.payment_terms === "pdc" && ` · PDC ${CUSTOMER_PDC_LABEL[customer.pdc_terms ?? "none"]}`}
             </div>
+            {/* The list shows the address, so the card has to as well — otherwise
+                something typed there can be seen but never accounted for. */}
+            {customer.address && <div className="text-xs text-slate-500">📍 {customer.address}</div>}
             {customer.notes && <div className="text-xs text-slate-500 mt-1">📝 {customer.notes}</div>}
           </div>
           <button className="btn-ghost !py-1" onClick={onEdit}>✏️ Edit</button>
