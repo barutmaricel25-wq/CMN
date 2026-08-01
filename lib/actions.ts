@@ -120,6 +120,30 @@ export function deleteProducts(ids: string[], user_id: string): { deleted: numbe
   return { deleted, hidden };
 }
 
+// Remove a customer. One who has bought something, ordered, or left a cheque
+// is hidden rather than erased, so past receipts and cheque records still make
+// sense. Returns what actually happened so the screen can say so.
+export function deleteCustomer(id: string, user_id: string): { deleted: boolean } {
+  let deleted = false;
+  tx((d) => {
+    const c = d.customers.find((x) => x.id === id);
+    if (!c) return;
+    const used =
+      d.sales.some((s) => s.customer_id === id) ||
+      d.online_orders.some((o) => o.customer_id === id) ||
+      d.pdc_checks.some((p) => p.customer_id === id);
+    if (used) {
+      audit(d, user_id, "update", "customer", id, c, { ...c, active: false });
+      c.active = false;
+    } else {
+      audit(d, user_id, "delete", "customer", id, c, undefined);
+      d.customers = d.customers.filter((x) => x.id !== id);
+      deleted = true;
+    }
+  });
+  return { deleted };
+}
+
 // ---------- Pull-down (the #1 fix) ----------
 export function pullDown(product_id: string, branch_id: string, qty: number, performed_by: string) {
   tx((d) => {

@@ -5,7 +5,7 @@ import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { peso, fmtDate, toCentavos } from "@/lib/util";
 import { blankCustomer, blankPDC } from "@/lib/factories";
-import { savePDC } from "@/lib/actions";
+import { savePDC, deleteCustomer } from "@/lib/actions";
 import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck,
   CUSTOMER_PDC_TERMS, CUSTOMER_PDC_DAYS, CUSTOMER_PDC_LABEL, CustomerPDCTerms } from "@/lib/types";
 import Link from "next/link";
@@ -16,6 +16,8 @@ export default function CustomersPage() {
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [flash, setFlash] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Prefill from global search (?q=...)
@@ -46,6 +48,12 @@ export default function CustomersPage() {
         <h1 className="font-bold text-lg">👥 Customers</h1>
         <button className="btn-primary !py-2" onClick={() => setEditing(blankCustomer())}>+ Add</button>
       </div>
+
+      {flash && (
+        <button className="card w-full p-3 text-sm font-semibold text-orange-800 bg-orange-50 border-orange-200 text-left" onClick={() => setFlash("")}>
+          {flash} <span className="text-slate-400 font-normal">— tap to dismiss</span>
+        </button>
+      )}
 
       <div className="card p-3 flex gap-2">
         <input className="input flex-1" placeholder="Search name / phone / CP…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -88,7 +96,7 @@ export default function CustomersPage() {
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditing(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditing(null); setConfirmRemove(false); }}>
           <div className="card w-full max-w-md p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg">{editing.name ? "Edit customer" : "New customer"}</h3>
             <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
@@ -145,7 +153,7 @@ export default function CustomersPage() {
             )}
             <textarea className="input" placeholder="Notes (pets, preferences…)" value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
             <div className="flex gap-2 pt-1">
-              <button className="btn-ghost flex-1" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="btn-ghost flex-1" onClick={() => { setEditing(null); setConfirmRemove(false); }}>Cancel</button>
               <button
                 className="btn-primary flex-1" disabled={!editing.name.trim()}
                 onClick={() => {
@@ -159,6 +167,39 @@ export default function CustomersPage() {
                 Save
               </button>
             </div>
+
+            {db.customers.some((x) => x.id === editing.id) &&
+              (confirmRemove ? (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
+                  <p className="text-sm font-semibold text-red-800">Remove {editing.name}?</p>
+                  <p className="text-xs text-red-700 mt-0.5">
+                    Anyone who has bought, ordered or left a cheque is hidden rather than erased, so old receipts and
+                    cheque records still add up. Every branch sees this.
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button className="btn-ghost flex-1" onClick={() => setConfirmRemove(false)}>Keep</button>
+                    <button
+                      className="btn-danger flex-1"
+                      onClick={() => {
+                        const { deleted } = deleteCustomer(editing.id, session.user_id);
+                        setFlash(
+                          deleted
+                            ? `🗑 Removed ${editing.name}.`
+                            : `🗑 ${editing.name} hidden — kept in the records because of past purchases or cheques.`
+                        );
+                        setConfirmRemove(false);
+                        setEditing(null);
+                      }}
+                    >
+                      Yes, remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button className="btn-danger w-full" onClick={() => setConfirmRemove(true)}>
+                  🗑 Remove this customer
+                </button>
+              ))}
           </div>
         </div>
       )}
