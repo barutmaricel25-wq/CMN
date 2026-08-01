@@ -39,9 +39,11 @@ export default function MovementsPage() {
   return (
     <div className="space-y-3">
       <h1 className="font-bold text-lg">📒 Stock Movements Ledger</h1>
-      <div className="card p-3 flex gap-2">
-        <input className="input flex-1" placeholder="Search product…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input w-44" value={type} onChange={(e) => setType(e.target.value)}>
+      {/* A drop-down beside the search box keeps its option text at full width
+          and leaves the box a sliver on a phone, so they get a row each. */}
+      <div className="card p-3 space-y-2">
+        <input className="input" placeholder="Search product…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">All types</option>
           {Object.entries(TYPE_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>

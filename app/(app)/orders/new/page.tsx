@@ -83,12 +83,16 @@ function NewOrderInner() {
           <div className="border border-slate-200 rounded-xl p-3 space-y-2">
             <input className="input" placeholder="Customer name" value={qaName} onChange={(e) => setQaName(e.target.value)} />
             <div className="flex gap-2">
-              <input className="input flex-1" placeholder="Phone" value={qaPhone} onChange={(e) => setQaPhone(e.target.value)} />
-              <select className="input w-36" value={qaType} onChange={(e) => setQaType(e.target.value as CustomerType)}>
-                <option value="retail">retail</option>
-                <option value="suki">suki</option>
-                <option value="wholesaler">wholesaler</option>
-              </select>
+              <div className="flex-1">
+                <input className="input" placeholder="Phone" value={qaPhone} onChange={(e) => setQaPhone(e.target.value)} />
+              </div>
+              <div className="w-36">
+                <select className="input" value={qaType} onChange={(e) => setQaType(e.target.value as CustomerType)}>
+                  <option value="retail">Online Reseller</option>
+                  <option value="suki">Suki</option>
+                  <option value="wholesaler">Wholesaler</option>
+                </select>
+              </div>
             </div>
             <button
               className="btn-primary w-full !py-2"
