@@ -131,6 +131,11 @@ through. That means the two keys from step 3 *are* the lock on your data — kee
 them private. If you ever need proper per-person accounts (so a leaked key
 alone isn't enough), that's a further piece of work; ask and it can be added.
 
+**How syncing works.** The first time a device connects it reads everything
+once. After that it only asks what changed since it last looked, so a refresh
+on a quiet minute fetches nothing at all and a price changed at another branch
+fetches one row. That needs `0005_incremental_sync.sql` to have been run.
+
 **Backups.** Supabase keeps its own daily backups on the free plan. The
 **Admin → Save backup** button still works and is worth using before anything
 big, like a full price-list re-import.

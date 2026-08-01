@@ -9,9 +9,17 @@
 import { useSyncExternalStore } from "react";
 import { DB, inBranchOrder } from "./types";
 import { buildSeed } from "./seed";
-import { cloudEnabled, cloudReady, fetchAll, pushAll, pushDiff, subscribeRealtime } from "./cloud";
+import { Changes, cloudEnabled, cloudReady, fetchAll, fetchChanges, markAfterUpload, pushAll, pushDiff, subscribeRealtime, TABLES, Table } from "./cloud";
 
 const KEY = "cmn-demo-db-v1";
+// How far this device has caught up with the shared database. Everything after
+// this is asked for by "what changed since"; without it we fall back to a full
+// load.
+const MARK_KEY = "cmn-sync-mark-v1";
+const readMark = () => (typeof window === "undefined" ? "" : localStorage.getItem(MARK_KEY) ?? "");
+const writeMark = (m: string) => {
+  if (typeof window !== "undefined") localStorage.setItem(MARK_KEY, m);
+};
 let db: DB | null = null;
 const listeners = new Set<() => void>();
 
@@ -203,21 +211,83 @@ let localEdits = 0;
 async function pull() {
   if (unsent) return; // this device has edits the server hasn't got yet
   const startedAt = localEdits;
-  const fresh = await withTimeout(fetchAll(), 90000, "Loading");
+  const { db: fresh, watermark } = await withTimeout(fetchAll(), 90000, "Loading");
   if (!fresh.branches.length || !fresh.users.length) {
     throw new Error("The shared database has no branches or staff yet — keeping this device's copy.");
   }
   if (localEdits !== startedAt) return; // edited while we were fetching
   db = fresh;
   lastPushed = clone(fresh);
+  writeMark(watermark);
   persist();
   notify();
+}
+
+// Fold "what changed" into the copy we already hold. This is the cheap path —
+// a quiet minute brings back nothing at all.
+function applyChanges(d: DB, c: Changes): number {
+  let touched = 0;
+  TABLES.forEach((t) => {
+    const incoming = c.rows[t];
+    if (!incoming?.length) return;
+    const list = d[t] as unknown as { id: string }[];
+    const at = new Map(list.map((r, i) => [r.id, i]));
+    incoming.forEach((row) => {
+      const i = at.get(row.id);
+      if (i === undefined) list.push(row as never);
+      else list[i] = row as never;
+      touched++;
+    });
+  });
+
+  c.deletions.forEach((del) => {
+    const t = del.table_name as Table;
+    if (!TABLES.includes(t)) return;
+    const list = d[t] as unknown as { id: string }[];
+    const i = list.findIndex((r) => r.id === del.row_id);
+    if (i >= 0) {
+      list.splice(i, 1);
+      touched++;
+    }
+  });
+
+  c.state.forEach((row) => {
+    const key = String((row as Record<string, unknown>).key ?? "");
+    const value = (row as Record<string, unknown>).value;
+    if (key === "settings") d.settings = { ...d.settings, ...(value as object) };
+    if (key === "receipt_counters") d.receipt_counters = value as Record<string, number>;
+    touched++;
+  });
+
+  d.branches = inBranchOrder(d.branches);
+  return touched;
+}
+
+// Ask only for what changed. Falls back to a full load the first time, or if
+// this device has drifted too far to catch up.
+async function catchUp() {
+  if (unsent) return;
+  const since = readMark();
+  if (!since) return pull();
+  const startedAt = localEdits;
+  const changes = await withTimeout(fetchChanges(since), 45000, "Checking for changes");
+  if (localEdits !== startedAt) return; // edited while we were fetching
+  const d = load();
+  const touched = applyChanges(d, changes);
+  writeMark(changes.watermark);
+  if (touched) {
+    db = { ...d };
+    lastPushed = clone(db);
+    persist();
+    notify();
+  }
 }
 
 // Send this device's whole copy up, retrying until it lands. Used when the
 // shared database has no finished upload yet, and after putting back the
 // pre-sync copy — both leave the server without a complete set until this wins.
 let uploadRetry: ReturnType<typeof setTimeout> | null = null;
+let liveTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function fullUpload() {
   if (uploadRetry) {
@@ -233,6 +303,9 @@ async function fullUpload() {
     await withTimeout(pushAll(target), 180000, "Upload");
     lastPushed = target;
     unsent = false;
+    // Everything up there came from here, so start counting changes from the
+    // moment the upload landed — by the server's clock, not the phone's.
+    writeMark(await markAfterUpload());
     setSync("online");
   } catch (e) {
     setSync("error", e instanceof Error ? e.message : String(e));
@@ -277,7 +350,9 @@ async function startCloud() {
     // offered, and on a catalogue this size it is worth the space back.
     localStorage.removeItem("cmn-pre-sync-backup");
     if (await withTimeout(cloudReady(), 12000, "Connecting")) {
-      await pull();
+      // Only the very first time does this device read everything; after that
+      // it just asks what changed.
+      await catchUp();
       setSync("online");
     } else {
       // Either nothing is up there yet, or a previous upload stopped halfway.
@@ -289,8 +364,13 @@ async function startCloud() {
     }
     subscribeRealtime(() => {
       // Ignore echoes of our own writes; our copy is already ahead.
-      if (pushing || pushAgain) return;
-      pull().catch(() => undefined);
+      if (pushing || pushAgain || unsent) return;
+      // Coalesce a burst of changes into one catch-up.
+      if (liveTimer) clearTimeout(liveTimer);
+      liveTimer = setTimeout(() => {
+        liveTimer = null;
+        catchUp().catch(() => undefined);
+      }, 400);
     });
   } catch (e) {
     setSync("error", e instanceof Error ? e.message : String(e));
@@ -334,10 +414,10 @@ export async function refreshFromCloud(): Promise<string> {
   }
   try {
     setSync("saving");
-    await pull();
+    await catchUp();
     setSync("online");
     const d = db ?? load();
-    return `✅ Refreshed — ${d.products.filter((p) => p.active).length} products, ${d.users.length} staff.`;
+    return `✅ Up to date — ${d.products.filter((p) => p.active).length} products, ${d.users.length} staff.`;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     setSync("error", msg);

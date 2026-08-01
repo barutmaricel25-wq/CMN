@@ -56,6 +56,14 @@ export const TABLES = [
 export type Table = (typeof TABLES)[number];
 
 type Row = { id: string } & Record<string, unknown>;
+
+// updated_at belongs to the server. Keeping it on the local copy would make
+// every pulled row look changed on the next push, which would bump it again —
+// a loop that never settles.
+const stripStamp = (r: Row): Row => {
+  const { updated_at: _drop, ...rest } = r as Record<string, unknown>;
+  return rest as Row;
+};
 const rowsOf = (d: DB, t: Table) => (d[t] as unknown as Row[]) ?? [];
 
 // Supabase caps a single response at 1000 rows, and the tables are bigger —
@@ -115,15 +123,17 @@ async function selectAll(table: string, keyCol = "id"): Promise<Row[]> {
   return rows;
 }
 
-export async function fetchAll(): Promise<DB> {
+export async function fetchAll(): Promise<{ db: DB; watermark: string }> {
   const seed = buildSeed();
   const lists = await Promise.all(TABLES.map((t) => selectAll(t)));
   const state = await selectAll("app_state", "key");
   const stateOf = (key: string) => state.find((r) => (r as { key?: string }).key === key)?.value;
 
+  const watermark = markFrom([...lists, state], new Date(0).toISOString());
+
   const d = { ...seed } as unknown as Record<string, unknown>;
   TABLES.forEach((t, i) => {
-    d[t] = lists[i];
+    d[t] = lists[i].map(stripStamp);
   });
   d.settings = { ...seed.settings, ...((stateOf("settings") as object) ?? {}) };
   d.receipt_counters = (stateOf("receipt_counters") as Record<string, number>) ?? {};
@@ -139,7 +149,71 @@ export async function fetchAll(): Promise<DB> {
     const seen = db.receipt_counters[s.branch_id] ?? 0;
     if (s.receipt_no > seen) db.receipt_counters[s.branch_id] = s.receipt_no;
   });
-  return db;
+  return { db, watermark };
+}
+
+// What changed since a device last looked. Far cheaper than fetchAll: a quiet
+// minute returns nothing at all instead of tens of thousands of rows.
+export interface Changes {
+  rows: Partial<Record<Table, Row[]>>;
+  state: Row[];
+  deletions: { table_name: string; row_id: string }[];
+  watermark: string;
+}
+
+// The high-water mark is taken from the rows themselves, so no clock has to be
+// agreed between the phone and the server. Backing off a couple of seconds
+// means a row committed slightly out of order is picked up next time rather
+// than missed; re-reading a handful of rows costs nothing.
+const OVERLAP_MS = 2000;
+
+function markFrom(rows: Row[][], since: string): string {
+  let max = since;
+  rows.forEach((list) =>
+    list.forEach((r) => {
+      const u = String((r as Record<string, unknown>).updated_at ?? "");
+      if (u > max) max = u;
+    })
+  );
+  if (max === since) return since;
+  return new Date(new Date(max).getTime() - OVERLAP_MS).toISOString();
+}
+
+async function changedSince(table: string, since: string): Promise<Row[]> {
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb()
+      .from(table)
+      .select("*")
+      .gt("updated_at", since)
+      .order("updated_at", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    out.push(...((data ?? []) as Row[]));
+    if (!data || data.length < PAGE) return out;
+  }
+}
+
+export async function fetchChanges(since: string): Promise<Changes> {
+  const lists = await Promise.all(TABLES.map((t) => changedSince(t, since)));
+  const state = await changedSince("app_state", since);
+  const { data: dels, error } = await sb()
+    .from("deletions")
+    .select("table_name,row_id,deleted_at")
+    .gt("deleted_at", since);
+  if (error) throw new Error(`deletions: ${error.message}`);
+  const deletions = (dels ?? []) as (Changes["deletions"][number] & { deleted_at?: string })[];
+
+  const watermark = markFrom(
+    [...lists, state, deletions.map((x) => ({ id: x.row_id, updated_at: x.deleted_at })) as Row[]],
+    since
+  );
+
+  const rows: Partial<Record<Table, Row[]>> = {};
+  TABLES.forEach((t, i) => {
+    if (lists[i].length) rows[t] = lists[i].map(stripStamp);
+  });
+  return { rows, state: state.map(stripStamp), deletions, watermark };
 }
 
 // Has a first upload ever finished? The marker is written last, so a run that
@@ -162,6 +236,19 @@ async function putState(key: string, value: unknown) {
   if (error) throw new Error(`app_state.${key}: ${error.message}`);
 }
 
+// The moment the upload finished, according to the server. Taking the phone's
+// clock instead would re-read everything just written.
+export async function markAfterUpload(): Promise<string> {
+  const { data, error } = await sb()
+    .from("app_state")
+    .select("updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`sync mark: ${error.message}`);
+  const stamp = (data?.[0] as { updated_at?: string } | undefined)?.updated_at;
+  return stamp ?? new Date().toISOString();
+}
+
 export async function pushAll(d: DB) {
   await putState("upload_complete", false);
   for (const t of TABLES) await upsert(t, rowsOf(d, t));
@@ -182,8 +269,15 @@ export async function pushDiff(prev: DB, next: DB) {
     const kept = new Set(after.map((r) => r.id));
     const gone = [...before.keys()].filter((id) => !kept.has(id));
     for (let i = 0; i < gone.length; i += 200) {
-      const { error } = await sb().from(t).delete().in("id", gone.slice(i, i + 200));
+      const batch = gone.slice(i, i + 200);
+      const { error } = await sb().from(t).delete().in("id", batch);
       if (error) throw new Error(`${t}: ${error.message}`);
+      // A row that is simply gone can't be noticed by asking for recent
+      // changes, so leave a note for the other devices.
+      const { error: delErr } = await sb()
+        .from("deletions")
+        .upsert(batch.map((id) => ({ table_name: t, row_id: id })));
+      if (delErr) throw new Error(`deletions: ${delErr.message}`);
     }
   }
   if (JSON.stringify(prev.settings) !== JSON.stringify(next.settings)) await putState("settings", next.settings);
