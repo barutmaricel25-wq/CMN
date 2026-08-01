@@ -251,7 +251,9 @@ function GlobalSearch({ role }: { role?: Role }) {
         .slice(0, 6)
     : [];
   const customers = term.length >= 2
-    ? db.customers.filter((c) => c.active && (c.name.toLowerCase().includes(term) || c.phone.includes(term))).slice(0, 4)
+    ? db.customers
+        .filter((c) => c.active && (c.name.toLowerCase().includes(term) || c.phone.includes(term) || (c.cp_number ?? "").includes(term)))
+        .slice(0, 4)
     : [];
 
   function go(href: string) {

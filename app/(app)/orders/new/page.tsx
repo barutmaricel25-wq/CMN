@@ -11,6 +11,7 @@ import { peso, uid } from "@/lib/util";
 import { blankCustomer } from "@/lib/factories";
 import { CustomerType, OnlineOrderItem, OrderSource, PaymentMethod } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
+import CustomerPicker from "@/components/CustomerPicker";
 
 function NewOrderInner() {
   const db = useDB();
@@ -75,12 +76,7 @@ function NewOrderInner() {
 
       <div className="card p-3 space-y-2">
         <div className="flex gap-2">
-          <select className="input flex-1" value={customerId} onChange={(e) => pickCustomer(e.target.value)}>
-            <option value="">Select customer…</option>
-            {db.customers.filter((c) => c.active).map((c) => (
-              <option key={c.id} value={c.id}>{c.name} — {c.type}</option>
-            ))}
-          </select>
+          <CustomerPicker branchId={branchId} value={customerId || null} onPick={(id) => pickCustomer(id ?? "")} />
           <button className="btn-secondary" onClick={() => setQuickAdd(!quickAdd)}>+ New</button>
         </div>
         {quickAdd && (
@@ -99,7 +95,7 @@ function NewOrderInner() {
               disabled={!qaName.trim()}
               onClick={() => {
                 const id = uid();
-                tx((d) => d.customers.push({ ...blankCustomer(), id, name: qaName.trim(), phone: qaPhone.trim(), type: qaType }));
+                tx((d) => d.customers.push({ ...blankCustomer(branchId), id, name: qaName.trim(), phone: qaPhone.trim(), type: qaType }));
                 pickCustomer(id);
                 setQuickAdd(false); setQaName(""); setQaPhone("");
               }}

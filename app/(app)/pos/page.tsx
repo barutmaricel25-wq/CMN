@@ -9,6 +9,7 @@ import { completeSale, priceFor, voidSale, CartLine } from "@/lib/actions";
 import { peso, toCentavos } from "@/lib/util";
 import { CustomerType, PaymentMethod, Product, Sale, User } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
+import CustomerPicker from "@/components/CustomerPicker";
 import PinModal from "@/components/PinModal";
 import Receipt from "@/components/Receipt";
 
@@ -157,18 +158,12 @@ export default function POSPage() {
       {/* Customer / tier */}
       <div className="card p-3 flex items-center gap-2">
         <span className="text-xl">👤</span>
-        <select
-          className="input flex-1"
-          value={cart.customer_id ?? ""}
-          onChange={(e) => attachCustomer(e.target.value || null)}
-        >
-          <option value="">Walk-in (retail price)</option>
-          {db.customers.filter((c) => c.active).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} — {c.type}
-            </option>
-          ))}
-        </select>
+        <CustomerPicker
+          branchId={branchId ?? ""}
+          value={cart.customer_id}
+          onPick={attachCustomer}
+          walkInLabel="Walk-in (retail price)"
+        />
         <span className={`badge ${tier === "retail" ? "bg-slate-200 text-slate-700" : tier === "suki" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
           {tier}
         </span>

@@ -80,11 +80,15 @@ function normalize(raw: unknown): DB {
     return { ...p, category, ord_ws_price: p.ord_ws_price ?? null, per_kilo: p.per_kilo ?? null };
   });
 
+  // Customers used to be shared across the whole business. The ones already on
+  // file are Unit 17's.
+  const unit17 = d.branches.find((b) => b.name.toLowerCase() === "unit 17")?.id ?? d.branches[0]?.id ?? "";
   d.customers = arr(d.customers, seed.customers).map((c) => ({
     ...c,
     payment_terms: c.payment_terms ?? "cash",
     cp_number: c.cp_number ?? "",
     pdc_terms: c.pdc_terms ?? "none",
+    branch_id: c.branch_id || unit17,
   }));
 
   d.deliveries = arr<DB["deliveries"][number]>(d.deliveries).map((del) => ({

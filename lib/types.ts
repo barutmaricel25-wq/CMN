@@ -216,6 +216,8 @@ export interface TransferItem {
 
 export interface Customer {
   id: string;
+  // Suki and wholesaler accounts belong to the branch that deals with them.
+  branch_id: string;
   name: string;
   phone: string;
   cp_number: string; // mobile number

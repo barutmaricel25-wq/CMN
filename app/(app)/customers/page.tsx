@@ -17,6 +17,7 @@ export default function CustomersPage() {
   const [type, setType] = useState("");
   const [editing, setEditing] = useState<Customer | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [allBranches, setAllBranches] = useState(false);
   const [flash, setFlash] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -34,8 +35,14 @@ export default function CustomersPage() {
     return { spend: sales.reduce((t, s) => t + s.total, 0), count: sales.length, last };
   };
 
+  const me = db.users.find((u) => u.id === session.user_id);
+  const branchId = session.branch_id ?? "";
+  const canSeeAll = me?.role !== "staff";
+
   const rows = db.customers
     .filter((c) => c.active)
+    // Suki and wholesaler accounts belong to a branch.
+    .filter((c) => allBranches || c.branch_id === branchId)
     .filter((c) => !type || c.type === type)
     .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.phone.includes(q) || (c.cp_number ?? "").includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -46,7 +53,7 @@ export default function CustomersPage() {
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <h1 className="font-bold text-lg">👥 Customers</h1>
-        <button className="btn-primary !py-2" onClick={() => setEditing(blankCustomer())}>+ Add</button>
+        <button className="btn-primary !py-2" onClick={() => setEditing(blankCustomer(branchId))}>+ Add</button>
       </div>
 
       {flash && (
@@ -57,6 +64,15 @@ export default function CustomersPage() {
 
       <div className="card p-3 flex gap-2">
         <input className="input flex-1" placeholder="Search name / phone / CP…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {canSeeAll && (
+          <button
+            className={`btn !px-3 whitespace-nowrap ${allBranches ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+            onClick={() => setAllBranches((v) => !v)}
+            title="Customers of every branch"
+          >
+            {allBranches ? "🏢 All" : "🏠 Mine"}
+          </button>
+        )}
         <select className="input w-36" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">All types</option>
           <option value="retail">Online Reseller</option>
@@ -77,7 +93,14 @@ export default function CustomersPage() {
                     <span className={`badge ml-2 ${c.type === "retail" ? "bg-slate-200 text-slate-700" : c.type === "suki" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{CUSTOMER_TYPE_LABEL[c.type]}</span>
                   </div>
                   <div className="text-xs text-slate-500">
-                    {[c.cp_number && `📱 ${c.cp_number}`, c.phone, c.address].filter(Boolean).join(" · ")}
+                    {[
+                      allBranches && db.branches.find((b) => b.id === c.branch_id)?.name,
+                      c.cp_number && `📱 ${c.cp_number}`,
+                      c.phone !== c.cp_number && c.phone,
+                      c.address,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </div>
                 </div>
                 <div className="text-right text-xs whitespace-nowrap">
@@ -115,6 +138,19 @@ export default function CustomersPage() {
               value={editing.cp_number}
               onChange={(e) => setEditing({ ...editing, cp_number: e.target.value })}
             />
+            <div>
+              <label className="label">Branch this customer belongs to</label>
+              <select
+                className="input"
+                value={editing.branch_id}
+                onChange={(e) => setEditing({ ...editing, branch_id: e.target.value })}
+                disabled={!canSeeAll}
+              >
+                {db.branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
             <input className="input" placeholder="Address" value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
             {editing.type !== "retail" && (
               <div>
@@ -232,7 +268,7 @@ function CustomerSheet({ customer, onEdit, onClose }: { customer: Customer; onEd
             <div className="text-xs text-slate-500">
               {CUSTOMER_TYPE_LABEL[customer.type]}
               {customer.cp_number && ` · 📱 ${customer.cp_number}`}
-              {customer.phone && ` · ${customer.phone}`}
+              {customer.phone && customer.phone !== customer.cp_number && ` · ${customer.phone}`}
               {customer.payment_terms === "pdc" && ` · PDC ${CUSTOMER_PDC_LABEL[customer.pdc_terms ?? "none"]}`}
             </div>
             {customer.notes && <div className="text-xs text-slate-500 mt-1">📝 {customer.notes}</div>}
