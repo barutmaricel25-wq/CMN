@@ -123,9 +123,10 @@ export function buildSeed(): DB {
   }));
 
   const customers: Customer[] = CUSTOMER_DEFS.map((c, i) => ({
-    id: `c${i + 1}`, name: c[0], phone: c[1], type: c[2], address: c[3], notes: c[4], active: true,
+    id: `c${i + 1}`, name: c[0], phone: c[1], cp_number: c[1], type: c[2], address: c[3], notes: c[4], active: true,
     // Wholesalers commonly pay by post-dated cheque; others pay cash.
     payment_terms: c[2] === "wholesaler" ? "pdc" : "cash",
+    pdc_terms: c[2] === "wholesaler" ? "pdc30" : "none",
   }));
 
   // Inventory: stockroom + storefront rows per product per branch.

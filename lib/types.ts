@@ -21,6 +21,18 @@ export const CUSTOMER_TYPE_LABEL: Record<CustomerType, string> = {
 };
 
 export type PaymentTerms = "cash" | "pdc";
+
+// How long a customer's post-dated cheque runs for. Wholesalers are usually on
+// one of these; "none" means the due date is agreed cheque by cheque.
+export type CustomerPDCTerms = "none" | "pdc7" | "pdc15" | "pdc30";
+export const CUSTOMER_PDC_TERMS: CustomerPDCTerms[] = ["none", "pdc7", "pdc15", "pdc30"];
+export const CUSTOMER_PDC_DAYS: Record<CustomerPDCTerms, number> = { none: 0, pdc7: 7, pdc15: 15, pdc30: 30 };
+export const CUSTOMER_PDC_LABEL: Record<CustomerPDCTerms, string> = {
+  none: "Per cheque",
+  pdc7: "7 days",
+  pdc15: "15 days",
+  pdc30: "30 days",
+};
 export type PaymentMethod = "cash" | "bank_transfer" | "gcash" | "other";
 export type SaleChannel = "onsite" | "online";
 export type OrderStatus =
@@ -206,11 +218,13 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  cp_number: string; // mobile number
   type: CustomerType;
   address: string;
   notes: string;
   active: boolean;
-  payment_terms: PaymentTerms; // suki/wholesaler may pay by PDC
+  payment_terms: PaymentTerms;  // suki/wholesaler may pay by PDC
+  pdc_terms: CustomerPDCTerms;  // how many days their cheques run
 }
 
 export interface Sale {

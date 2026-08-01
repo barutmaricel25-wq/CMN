@@ -6,7 +6,8 @@ import { useSession } from "@/lib/session";
 import { peso, fmtDate, toCentavos } from "@/lib/util";
 import { blankCustomer, blankPDC } from "@/lib/factories";
 import { savePDC } from "@/lib/actions";
-import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck } from "@/lib/types";
+import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck,
+  CUSTOMER_PDC_TERMS, CUSTOMER_PDC_DAYS, CUSTOMER_PDC_LABEL, CustomerPDCTerms } from "@/lib/types";
 import Link from "next/link";
 
 export default function CustomersPage() {
@@ -34,7 +35,7 @@ export default function CustomersPage() {
   const rows = db.customers
     .filter((c) => c.active)
     .filter((c) => !type || c.type === type)
-    .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.phone.includes(q))
+    .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.phone.includes(q) || (c.cp_number ?? "").includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const open = openId ? db.customers.find((c) => c.id === openId) : null;
@@ -47,7 +48,7 @@ export default function CustomersPage() {
       </div>
 
       <div className="card p-3 flex gap-2">
-        <input className="input flex-1" placeholder="Search name/phone…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input flex-1" placeholder="Search name / phone / CP…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input w-36" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">All types</option>
           <option value="retail">Online Reseller</option>
@@ -67,7 +68,9 @@ export default function CustomersPage() {
                     {c.name}
                     <span className={`badge ml-2 ${c.type === "retail" ? "bg-slate-200 text-slate-700" : c.type === "suki" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{CUSTOMER_TYPE_LABEL[c.type]}</span>
                   </div>
-                  <div className="text-xs text-slate-500">{c.phone} {c.address && `· ${c.address}`}</div>
+                  <div className="text-xs text-slate-500">
+                    {[c.cp_number && `📱 ${c.cp_number}`, c.phone, c.address].filter(Boolean).join(" · ")}
+                  </div>
                 </div>
                 <div className="text-right text-xs whitespace-nowrap">
                   <div className="font-bold tabular-nums">{peso(m.spend)}</div>
@@ -97,6 +100,13 @@ export default function CustomersPage() {
                 <option value="wholesaler">Wholesaler</option>
               </select>
             </div>
+            <input
+              className="input"
+              inputMode="tel"
+              placeholder="CP number (mobile)"
+              value={editing.cp_number}
+              onChange={(e) => setEditing({ ...editing, cp_number: e.target.value })}
+            />
             <input className="input" placeholder="Address" value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
             {editing.type !== "retail" && (
               <div>
@@ -112,6 +122,25 @@ export default function CustomersPage() {
                     </button>
                   ))}
                 </div>
+                {editing.payment_terms === "pdc" && (
+                  <div className="mt-2">
+                    <label className="label">Cheque term — how long until it can be encashed</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {CUSTOMER_PDC_TERMS.map((t) => (
+                        <button
+                          key={t}
+                          className={`btn !px-1 text-xs ${editing.pdc_terms === t ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+                          onClick={() => setEditing({ ...editing, pdc_terms: t })}
+                        >
+                          {CUSTOMER_PDC_LABEL[t]}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Used to fill in the due date when you record one of their cheques.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             <textarea className="input" placeholder="Notes (pets, preferences…)" value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
@@ -159,7 +188,12 @@ function CustomerSheet({ customer, onEdit, onClose }: { customer: Customer; onEd
         <div className="flex justify-between items-start">
           <div>
             <h3 className="font-bold text-lg">{customer.name}</h3>
-            <div className="text-xs text-slate-500">{CUSTOMER_TYPE_LABEL[customer.type]} · {customer.phone}</div>
+            <div className="text-xs text-slate-500">
+              {CUSTOMER_TYPE_LABEL[customer.type]}
+              {customer.cp_number && ` · 📱 ${customer.cp_number}`}
+              {customer.phone && ` · ${customer.phone}`}
+              {customer.payment_terms === "pdc" && ` · PDC ${CUSTOMER_PDC_LABEL[customer.pdc_terms ?? "none"]}`}
+            </div>
             {customer.notes && <div className="text-xs text-slate-500 mt-1">📝 {customer.notes}</div>}
           </div>
           <button className="btn-ghost !py-1" onClick={onEdit}>✏️ Edit</button>
@@ -219,12 +253,23 @@ function CustomerPDC({ customer }: { customer: Customer }) {
     .filter((c) => c.customer_id === customer.id)
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
+  // Their agreed term decides the due date; still editable per cheque.
+  const dueFrom = (issued: string) => {
+    const days = CUSTOMER_PDC_DAYS[customer.pdc_terms ?? "none"] ?? 0;
+    if (!days || !issued) return issued;
+    const d = new Date(`${issued}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
   function startAdd() {
+    const base = blankPDC(session.branch_id ?? "");
     setDraft({
-      ...blankPDC(session.branch_id ?? ""),
+      ...base,
       direction: "receivable",
       party_name: customer.name,
       customer_id: customer.id,
+      due_date: dueFrom(base.date_issued),
     });
     setAdding(true);
   }
@@ -257,6 +302,12 @@ function CustomerPDC({ customer }: { customer: Customer }) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setAdding(false)}>
           <div className="card w-full max-w-sm p-5 space-y-2" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold">Record cheque — {customer.name}</h3>
+            {(customer.pdc_terms ?? "none") !== "none" && (
+              <p className="text-xs text-slate-500">
+                Agreed term: <b>{CUSTOMER_PDC_LABEL[customer.pdc_terms]}</b> — due date filled in for you, change it if
+                this cheque is different.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div><label className="label">Check number</label>
                 <input className="input" value={draft.check_number} onChange={(e) => setDraft({ ...draft, check_number: e.target.value })} /></div>
@@ -267,7 +318,8 @@ function CustomerPDC({ customer }: { customer: Customer }) {
               <input className="input" inputMode="decimal" onChange={(e) => setDraft({ ...draft, amount: toCentavos(e.target.value) })} /></div>
             <div className="grid grid-cols-2 gap-2">
               <div><label className="label">Date of payment</label>
-                <input className="input" type="date" value={draft.date_issued} onChange={(e) => setDraft({ ...draft, date_issued: e.target.value })} /></div>
+                <input className="input" type="date" value={draft.date_issued}
+                  onChange={(e) => setDraft({ ...draft, date_issued: e.target.value, due_date: dueFrom(e.target.value) })} /></div>
               <div><label className="label">Due date</label>
                 <input className="input" type="date" value={draft.due_date} onChange={(e) => setDraft({ ...draft, due_date: e.target.value })} /></div>
             </div>

@@ -75,6 +75,8 @@ function normalize(raw: unknown): DB {
   d.customers = arr(d.customers, seed.customers).map((c) => ({
     ...c,
     payment_terms: c.payment_terms ?? "cash",
+    cp_number: c.cp_number ?? "",
+    pdc_terms: c.pdc_terms ?? "none",
   }));
 
   d.deliveries = arr<DB["deliveries"][number]>(d.deliveries).map((del) => ({

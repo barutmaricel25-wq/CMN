@@ -13,8 +13,8 @@ export function blankUser(branch_id: string | null): User {
 
 export function blankCustomer(): Customer {
   return {
-    id: uid(), name: "", phone: "", type: "retail", address: "", notes: "",
-    active: true, payment_terms: "cash",
+    id: uid(), name: "", phone: "", cp_number: "", type: "retail", address: "", notes: "",
+    active: true, payment_terms: "cash", pdc_terms: "none",
   };
 }
 
