@@ -9,16 +9,11 @@
 // to look at the other branches and shows which branch each one is from.
 import { useMemo, useState } from "react";
 import { useDB } from "@/lib/store";
+import { matchesCustomer } from "@/lib/util";
 import { Customer, CUSTOMER_TYPE_LABEL } from "@/lib/types";
 
-const flat = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-
-function matches(c: Customer, q: string): boolean {
-  const t = flat(q).split(" ").filter(Boolean);
-  if (!t.length) return true;
-  const hay = flat([c.name, c.phone, c.cp_number, c.type, CUSTOMER_TYPE_LABEL[c.type], c.address].join(" "));
-  return t.every((term) => hay.includes(term));
-}
+const matches = (c: Customer, q: string) =>
+  matchesCustomer({ ...c, type: `${c.type} ${CUSTOMER_TYPE_LABEL[c.type]}` }, q);
 
 const tierBadge = (t: Customer["type"]) =>
   t === "retail" ? "bg-slate-200 text-slate-700" : t === "suki" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800";

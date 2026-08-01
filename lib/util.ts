@@ -97,6 +97,28 @@ export function searchScore(p: Searchable, q: string): number {
   return 5;
 }
 
+// Finding a customer works the same way: people type what they remember, in any
+// order — part of the shop name and the last few digits of the number.
+type SearchableCustomer = {
+  name: string;
+  phone?: string;
+  cp_number?: string;
+  address?: string;
+  type?: string;
+};
+
+export function matchesCustomer(c: SearchableCustomer, q: string): boolean {
+  const t = terms(q);
+  if (!t.length) return true;
+  // Numbers are typed as written ("0917…"), so keep digits joined up as well as
+  // flattened, or a search for the last four digits would miss.
+  const hay =
+    flatten([c.name, c.phone, c.cp_number, c.address, c.type].filter(Boolean).join(" ")) +
+    " " +
+    [c.phone, c.cp_number].filter(Boolean).join(" ").replace(/[^0-9]/g, "");
+  return t.every((term) => hay.includes(term));
+}
+
 // Medicines are priced by the piece, not by weight, so the last price column
 // is labelled to match whichever the category is.
 export function perUnitLabel(category: string): string {

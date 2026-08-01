@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { peso, fmtDate, toCentavos } from "@/lib/util";
+import { peso, fmtDate, toCentavos, matchesCustomer } from "@/lib/util";
 import { blankCustomer, blankPDC } from "@/lib/factories";
 import { savePDC, deleteCustomer } from "@/lib/actions";
 import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck,
@@ -44,7 +44,7 @@ export default function CustomersPage() {
     // Suki and wholesaler accounts belong to a branch.
     .filter((c) => allBranches || c.branch_id === branchId)
     .filter((c) => !type || c.type === type)
-    .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.phone.includes(q) || (c.cp_number ?? "").includes(q))
+    .filter((c) => matchesCustomer(c, q))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const open = openId ? db.customers.find((c) => c.id === openId) : null;
@@ -62,23 +62,46 @@ export default function CustomersPage() {
         </button>
       )}
 
-      <div className="card p-3 flex gap-2">
-        <input className="input flex-1" placeholder="Search name / phone / CP…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {canSeeAll && (
-          <button
-            className={`btn !px-3 whitespace-nowrap ${allBranches ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
-            onClick={() => setAllBranches((v) => !v)}
-            title="Customers of every branch"
-          >
-            {allBranches ? "🏢 All" : "🏠 Mine"}
-          </button>
+      {/* Search gets a row of its own — squeezed in beside the filters it ends up
+          a few pixels wide on a phone. */}
+      <div className="card p-3 space-y-2">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          <input
+            className="input !pl-9"
+            placeholder="Search name / phone / CP…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          {q && (
+            <button className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 px-2" onClick={() => setQ("")}>
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {canSeeAll && (
+            <button
+              className={`btn !px-3 whitespace-nowrap ${allBranches ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+              onClick={() => setAllBranches((v) => !v)}
+              title="Customers of every branch"
+            >
+              {allBranches ? "🏢 All branches" : "🏠 This branch"}
+            </button>
+          )}
+          <select className="input flex-1" value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="">All types</option>
+            <option value="retail">Online Reseller</option>
+            <option value="suki">Suki</option>
+            <option value="wholesaler">Wholesaler</option>
+          </select>
+        </div>
+        {q.trim() && (
+          <p className="text-xs text-slate-500">
+            {rows.length} {rows.length === 1 ? "customer" : "customers"} found
+            {!allBranches && canSeeAll && " in this branch"}
+          </p>
         )}
-        <select className="input w-36" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">All types</option>
-          <option value="retail">Online Reseller</option>
-          <option value="suki">Suki</option>
-          <option value="wholesaler">Wholesaler</option>
-        </select>
       </div>
 
       <div className="card divide-y divide-slate-100">
@@ -105,7 +128,12 @@ export default function CustomersPage() {
                 </div>
                 <div className="text-right text-xs whitespace-nowrap">
                   <div className="font-bold tabular-nums">{peso(m.spend)}</div>
-                  <div className="text-slate-500">{m.count} orders{m.last ? ` · last ${fmtDate(m.last)}` : ""}</div>
+                  {/* The last-order date is worth having but not at the cost of
+                      the customer's name on a narrow phone. */}
+                  <div className="text-slate-500">
+                    {m.count} orders
+                    {m.last && <span className="hidden sm:inline"> · last {fmtDate(m.last)}</span>}
+                  </div>
                 </div>
               </div>
             </button>
