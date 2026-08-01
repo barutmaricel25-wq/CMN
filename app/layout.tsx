@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ShopLock from "@/components/ShopLock";
 
 export const metadata: Metadata = {
   title: "CMN Trading Corporation",
@@ -19,7 +20,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/* The shop password guards everything, sign-in included. */}
+        <ShopLock>{children}</ShopLock>
+      </body>
     </html>
   );
 }

@@ -6,6 +6,8 @@ import { useDB, tx, resetDemo } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
+import { audit } from "@/lib/actions";
+import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
 import { blankUser } from "@/lib/factories";
 import { inBranchOrder, Role, User } from "@/lib/types";
 
@@ -31,7 +33,7 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {tab === "settings" && <SettingsTab />}
+      {tab === "settings" && <SettingsTab isOwner={me.role === "owner"} me={me} />}
       {tab === "users" && <UsersTab canManage={me.role === "owner"} />}
       {tab === "branches" && <BranchesTab canManage={me.role === "owner"} />}
       {tab === "audit" && <AuditTab />}
@@ -52,11 +54,13 @@ function backupNow() {
   URL.revokeObjectURL(url);
 }
 
-function SettingsTab() {
+function SettingsTab({ isOwner, me }: { isOwner: boolean; me: User }) {
   const db = useDB();
   const s = db.settings;
   const set = (patch: Partial<typeof s>) => tx((d) => Object.assign(d.settings, patch));
   return (
+    <>
+    {isOwner && <ShopPasswordPanel me={me} />}
     <div className="card p-4 space-y-3">
       <div>
         <label className="label">Receipt header</label>
@@ -159,6 +163,112 @@ function SettingsTab() {
           🔄 Reset demo data
         </button>
       </div>
+    </div>
+    </>
+  );
+}
+
+// One password for the whole shop, asked once per device before the sign-in
+// screen. The owner sets it; changing it asks every device again, which is how
+// somebody who has left is shut out.
+function ShopPasswordPanel({ me }: { me: User }) {
+  const db = useDB();
+  const stored = db.settings.shop_password ?? "";
+  const setAt = db.settings.shop_password_set_at ?? "";
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [again, setAgain] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [flash, setFlash] = useState("");
+
+  const tooShort = pw.length > 0 && pw.length < 8;
+  const mismatch = again.length > 0 && pw !== again;
+  const canSave = pw.length >= 8 && pw === again && !busy;
+
+  async function save() {
+    setBusy(true);
+    setErr("");
+    try {
+      const hash = await hashPassword(pw);
+      tx((d) => {
+        audit(d, me.id, stored ? "update" : "create", "shop_password", "settings");
+        d.settings.shop_password = hash;
+        d.settings.shop_password_set_at = new Date().toISOString();
+      });
+      // Don't lock the owner out of the screen they are standing on.
+      markUnlocked(hash);
+      setPw(""); setAgain(""); setOpen(false);
+      setFlash("✅ Shop password saved. Every other device will be asked for it the next time it opens the app.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove() {
+    if (!window.confirm("Remove the shop password? Anyone with the link will be able to open the app again.")) return;
+    tx((d) => {
+      audit(d, me.id, "delete", "shop_password", "settings");
+      d.settings.shop_password = "";
+      d.settings.shop_password_set_at = "";
+    });
+    forgetUnlock();
+    setFlash("Shop password removed.");
+  }
+
+  return (
+    <div className={`card p-4 space-y-2 mb-3 ${stored ? "" : "border-amber-300 bg-amber-50"}`}>
+      <div className="label !mb-0">🔒 Shop password</div>
+      {stored ? (
+        <p className="text-sm text-slate-600">
+          On. Everyone is asked for it once per phone or computer
+          {setAt && <> — set {fmtDateTime(setAt)}</>}.
+        </p>
+      ) : (
+        <p className="text-sm font-semibold text-amber-900">
+          Not set. Anyone who has the link can open the app and reach the sign-in screen.
+        </p>
+      )}
+
+      {flash && (
+        <button className="text-xs font-semibold text-orange-800 text-left" onClick={() => setFlash("")}>
+          {flash} <span className="text-slate-400 font-normal">— tap to dismiss</span>
+        </button>
+      )}
+
+      {!open ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-secondary" onClick={() => { setOpen(true); setFlash(""); }}>
+            {stored ? "Change password" : "Set a password"}
+          </button>
+          {stored && <button className="btn-ghost text-red-700" onClick={remove}>Remove</button>}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div>
+            <label className="label">New shop password</label>
+            <input className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+            {tooShort && <p className="text-xs text-amber-700 font-semibold mt-1">At least 8 characters.</p>}
+          </div>
+          <div>
+            <label className="label">Type it again</label>
+            <input className="input" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+            {mismatch && <p className="text-xs text-red-600 font-semibold mt-1">The two don&apos;t match.</p>}
+          </div>
+          {err && <p className="text-sm font-semibold text-red-600">{err}</p>}
+          <p className="text-xs text-slate-500">
+            Three unrelated words are easier to tell staff and harder to guess than one word with numbers. Say it in
+            person — don&apos;t put it in a group chat. It is stored scrambled, so nobody can read it back out of the app,
+            which also means it cannot be recovered if forgotten — you would set a new one.
+          </p>
+          <div className="flex gap-2">
+            <button className="btn-ghost flex-1" onClick={() => { setOpen(false); setPw(""); setAgain(""); setErr(""); }}>Cancel</button>
+            <button className="btn-primary flex-1" disabled={!canSave} onClick={save}>{busy ? "Saving…" : "Save password"}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

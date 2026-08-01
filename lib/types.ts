@@ -388,6 +388,11 @@ export interface Settings {
   sss_rate: number;
   philhealth_rate: number;
   pagibig_rate: number;
+  // The shop password, as a salted derivation — never the password itself.
+  // Empty means no password is set and the app opens straight to sign-in.
+  shop_password: string;
+  // When it was last set, so the owner can see the door is actually locked.
+  shop_password_set_at: string;
 }
 
 export interface DB {

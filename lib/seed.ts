@@ -328,6 +328,8 @@ export function buildSeed(): DB {
       sss_rate: P(490),
       philhealth_rate: P(370.5),
       pagibig_rate: P(200),
+      shop_password: "",
+      shop_password_set_at: "",
     },
     receipt_counters,
   };

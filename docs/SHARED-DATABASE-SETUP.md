@@ -131,6 +131,21 @@ through. That means the two keys from step 3 *are* the lock on your data — kee
 them private. If you ever need proper per-person accounts (so a leaked key
 alone isn't enough), that's a further piece of work; ask and it can be added.
 
+**The shop password.** Admin & Settings → **Shop password** (owner only) puts one
+password in front of the whole app, asked once per phone or computer. It stops
+anyone who is simply handed the link — a former staff member, a competitor who
+hears the address. Change it and every device is asked again, which is how you
+shut someone out.
+
+What it does *not* do: someone technical who has the link can still read the
+Supabase keys out of the page, because they have to be there for the app to
+work. The gate is in front of the app, not in front of the database. Per-person
+accounts are what closes that gap.
+
+The password is stored scrambled, in the shared database, so it applies to every
+branch — and nobody can read it back out of the app. That also means it can't be
+recovered if it's forgotten; the owner just sets a new one.
+
 **How syncing works.** The first time a device connects it reads everything
 once. After that it only asks what changed since it last looked, so a refresh
 on a quiet minute fetches nothing at all and a price changed at another branch
