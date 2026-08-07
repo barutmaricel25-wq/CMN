@@ -1,20 +1,21 @@
 // Core data model — mirrors supabase/migrations/0001_schema.sql exactly.
 // All money values are integers in centavos (₱1.00 = 100).
 
-export type Role = "owner" | "manager" | "assistant_manager" | "staff";
-export const ROLES: Role[] = ["owner", "manager", "assistant_manager", "staff"];
+export type Role = "owner" | "manager" | "cashier" | "staff";
+export const ROLES: Role[] = ["owner", "manager", "cashier", "staff"];
 export const ROLE_LABEL: Record<Role, string> = {
   owner: "Owner",
   manager: "Manager",
-  assistant_manager: "Assistant Manager",
+  cashier: "Cashier",
   staff: "Staff",
 };
 
 // Who is trusted with what. Written out rather than tested as "not staff",
-// because an assistant manager is trusted with the stock and the price list but
-// not with money, payroll, staff records or another branch's books.
+// because a cashier is trusted with the stock and the price list but not with
+// money, payroll, staff records or another branch's books.
 export const isManagerLevel = (r: Role) => r === "owner" || r === "manager";
-export const canEditStockAndPrices = (r: Role) => isManagerLevel(r) || r === "assistant_manager";
+export const canEditStockAndPrices = (r: Role) => isManagerLevel(r) || r === "cashier";
+
 export type Location = "stockroom" | "storefront";
 export type MovementType =
   | "delivery_in"

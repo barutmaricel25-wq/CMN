@@ -52,7 +52,7 @@ export default function LoginPage() {
                 {byBranch(b.id).map((u) => (
                   <button key={u.id} className="btn-secondary justify-between" onClick={() => setPinFor(u)}>
                     <span>
-                      {u.role === "manager" ? "🧑‍💼" : u.role === "assistant_manager" ? "🧑‍🔧" : "🧑"} {u.name}
+                      {u.role === "manager" ? "🧑‍💼" : u.role === "cashier" ? "🛒" : "🧑"} {u.name}
                       <span className="ml-2 text-xs text-slate-400 uppercase">{ROLE_LABEL[u.role]}</span>
                     </span>
                   </button>

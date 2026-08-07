@@ -218,8 +218,8 @@ export default function StockCountPage() {
 
       {pin && (
         <PinModal
-          title="Manager or assistant manager PIN" subtitle={`Post ${diffs.length} count correction${diffs.length !== 1 ? "s" : ""}`}
-          managerOnly allowAssistant branch_id={branchId}
+          title="Manager or cashier PIN" subtitle={`Post ${diffs.length} count correction${diffs.length !== 1 ? "s" : ""}`}
+          managerOnly allowCashier branch_id={branchId}
           onCancel={() => setPin(false)}
           onSuccess={(mgr) => {
             diffs.forEach((d) => adjustStock(d.p.id, branchId, location, d.diff!, "Stock count correction", session.user_id, mgr.id));

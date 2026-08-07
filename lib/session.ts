@@ -54,12 +54,12 @@ export function currentUser(): User | null {
 // Returns the matching user or null. Used for privileged actions.
 export function verifyPin(
   pin: string,
-  opts: { managerOnly?: boolean; allowAssistant?: boolean; branch_id?: string | null } = {}
+  opts: { managerOnly?: boolean; allowCashier?: boolean; branch_id?: string | null } = {}
 ): User | null {
   const db = getDB();
   const match = db.users.find((u) => {
     if (!u.active || u.pin !== pin) return false;
-    if (opts.managerOnly && !isManagerLevel(u.role) && !(opts.allowAssistant && u.role === "assistant_manager"))
+    if (opts.managerOnly && !isManagerLevel(u.role) && !(opts.allowCashier && u.role === "cashier"))
       return false;
     if (
       opts.branch_id &&

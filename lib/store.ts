@@ -63,6 +63,8 @@ function normalize(raw: unknown, fillEmpty = true): DB {
   const savedUsers = orSeed(arr(d.users, seed.users), seed.users);
   d.users = savedUsers.map((u) => ({
     ...u,
+    // The role now called cashier was briefly called assistant manager.
+    role: (u.role as string) === "assistant_manager" ? "cashier" : u.role,
     contact_number: u.contact_number ?? "",
     address: u.address ?? "",
     sss_id: u.sss_id ?? "",

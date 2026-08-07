@@ -8,7 +8,7 @@ export default function PinModal({
   title,
   subtitle,
   managerOnly = false,
-  allowAssistant = false,
+  allowCashier = false,
   branch_id,
   onSuccess,
   onCancel,
@@ -16,9 +16,9 @@ export default function PinModal({
   title: string;
   subtitle?: string;
   managerOnly?: boolean;
-  // Stock work — counts and adjustments — is also an assistant manager's job,
+  // Stock work — counts and adjustments — is also a cashier's job,
   // so those gates let one through while the money ones do not.
-  allowAssistant?: boolean;
+  allowCashier?: boolean;
   branch_id?: string | null;
   onSuccess: (user: User) => void;
   onCancel: () => void;
@@ -32,11 +32,11 @@ export default function PinModal({
     setPin(next);
     setError("");
     if (next.length === 4) {
-      const user = verifyPin(next, { managerOnly, allowAssistant, branch_id });
+      const user = verifyPin(next, { managerOnly, allowCashier, branch_id });
       if (user) {
         onSuccess(user);
       } else {
-        setError(managerOnly ? (allowAssistant ? "Not a manager or assistant manager PIN" : "Invalid manager PIN") : "Invalid PIN");
+        setError(managerOnly ? (allowCashier ? "Not a manager or cashier PIN" : "Invalid manager PIN") : "Invalid PIN");
         setTimeout(() => setPin(""), 400);
       }
     }

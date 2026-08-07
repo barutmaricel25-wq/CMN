@@ -215,10 +215,10 @@ export default function InventoryPage() {
 
       {adjust && !pinned && (
         <PinModal
-          title="Manager or assistant manager PIN"
+          title="Manager or cashier PIN"
           subtitle={`Adjust ${adjust.product.name} (${adjust.location})`}
           managerOnly
-          allowAssistant
+          allowCashier
           branch_id={myBranchId}
           onCancel={() => setAdjust(null)}
           onSuccess={(mgr) => setPinned({ approved_by: mgr.id })}
