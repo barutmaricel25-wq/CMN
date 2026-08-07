@@ -8,6 +8,7 @@ import { clockPunch, audit } from "@/lib/actions";
 import { haversineMeters, fmtTime, fmtDateTime, manilaDateKey, downloadCSV } from "@/lib/util";
 import CameraCapture from "@/components/CameraCapture";
 import PinModal from "@/components/PinModal";
+import { isManagerLevel } from "@/lib/types";
 
 export default function AttendancePage() {
   const db = useDB();
@@ -23,7 +24,7 @@ export default function AttendancePage() {
   const branchId = session.branch_id!;
   const user = db.users.find((u) => u.id === session.user_id)!;
   const branch = db.branches.find((b) => b.id === branchId)!;
-  const isManager = user.role !== "staff";
+  const isManager = isManagerLevel(user.role);
 
   const myToday = db.attendance
     .filter((a) => a.user_id === user.id && manilaDateKey(a.created_at) === manilaDateKey())

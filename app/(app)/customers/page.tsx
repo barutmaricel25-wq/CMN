@@ -6,8 +6,7 @@ import { useSession } from "@/lib/session";
 import { peso, fmtDate, toCentavos, matchesCustomer } from "@/lib/util";
 import { blankCustomer, blankPDC } from "@/lib/factories";
 import { savePDC, deleteCustomer } from "@/lib/actions";
-import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck,
-  CUSTOMER_PDC_TERMS, CUSTOMER_PDC_DAYS, CUSTOMER_PDC_LABEL, CustomerPDCTerms } from "@/lib/types";
+import { Customer, CustomerType, CUSTOMER_TYPE_LABEL, PaymentTerms, PDCCheck, CUSTOMER_PDC_TERMS, CUSTOMER_PDC_DAYS, CUSTOMER_PDC_LABEL, CustomerPDCTerms, isManagerLevel } from "@/lib/types";
 import Link from "next/link";
 
 export default function CustomersPage() {
@@ -37,7 +36,7 @@ export default function CustomersPage() {
 
   const me = db.users.find((u) => u.id === session.user_id);
   const branchId = session.branch_id ?? "";
-  const canSeeAll = me?.role !== "staff";
+  const canSeeAll = !!me && isManagerLevel(me.role);
 
   const rows = db.customers
     .filter((c) => c.active)

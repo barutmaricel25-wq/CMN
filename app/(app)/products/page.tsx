@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
 import { saveBrand, deleteProducts } from "@/lib/actions";
 import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode, matchesSearch, searchScore, perUnitLabel } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
-import { CATEGORIES, categoriesOf, Product } from "@/lib/types";
+import { CATEGORIES, categoriesOf, Product, canEditStockAndPrices } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
 const SHOW_LIMIT = 400;
@@ -107,7 +107,7 @@ export default function ProductsPage() {
 
   if (!session) return null;
   const user = db.users.find((u) => u.id === session.user_id)!;
-  const canEdit = user.role !== "staff";
+  const canEdit = canEditStockAndPrices(user.role);
 
   if (printMode) {
     const grouped = categories.map((c) => ({ c, items: rows.filter((p) => p.category === c) })).filter((g) => g.items.length);

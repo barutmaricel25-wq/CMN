@@ -204,7 +204,7 @@ export default function StockCountPage() {
 
       {diffs.length > 0 && (
         <button className="btn-primary w-full text-base" onClick={() => setPin(true)}>
-          Apply {diffs.length} correction{diffs.length !== 1 ? "s" : ""} (manager PIN)
+          Apply {diffs.length} correction{diffs.length !== 1 ? "s" : ""} (approval PIN)
         </button>
       )}
       {rows.length > 0 && diffs.length === 0 && pending.length === 0 && (
@@ -218,8 +218,8 @@ export default function StockCountPage() {
 
       {pin && (
         <PinModal
-          title="Manager PIN required" subtitle={`Post ${diffs.length} count correction${diffs.length !== 1 ? "s" : ""}`}
-          managerOnly branch_id={branchId}
+          title="Manager or assistant manager PIN" subtitle={`Post ${diffs.length} count correction${diffs.length !== 1 ? "s" : ""}`}
+          managerOnly allowAssistant branch_id={branchId}
           onCancel={() => setPin(false)}
           onSuccess={(mgr) => {
             diffs.forEach((d) => adjustStock(d.p.id, branchId, location, d.diff!, "Stock count correction", session.user_id, mgr.id));

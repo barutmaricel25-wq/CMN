@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDB } from "@/lib/store";
 import { setSession, useSession } from "@/lib/session";
-import { User } from "@/lib/types";
+import { User, ROLE_LABEL } from "@/lib/types";
 import PinModal from "@/components/PinModal";
 
 export default function LoginPage() {
@@ -52,8 +52,8 @@ export default function LoginPage() {
                 {byBranch(b.id).map((u) => (
                   <button key={u.id} className="btn-secondary justify-between" onClick={() => setPinFor(u)}>
                     <span>
-                      {u.role === "manager" ? "🧑‍💼" : "🧑"} {u.name}
-                      <span className="ml-2 text-xs text-slate-400 uppercase">{u.role}</span>
+                      {u.role === "manager" ? "🧑‍💼" : u.role === "assistant_manager" ? "🧑‍🔧" : "🧑"} {u.name}
+                      <span className="ml-2 text-xs text-slate-400 uppercase">{ROLE_LABEL[u.role]}</span>
                     </span>
                   </button>
                 ))}

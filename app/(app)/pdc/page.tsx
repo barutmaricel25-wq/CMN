@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
 import { savePDC, setPDCStatus } from "@/lib/actions";
 import { blankPDC } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, downloadCSV } from "@/lib/util";
-import { PDCCheck, PDCDirection, PDCStatus } from "@/lib/types";
+import { PDCCheck, PDCDirection, PDCStatus, isManagerLevel } from "@/lib/types";
 
 export default function PDCPage() {
   const db = useDB();
@@ -20,7 +20,7 @@ export default function PDCPage() {
   if (!session) return null;
   const me = db.users.find((u) => u.id === session.user_id)!;
   const isOwner = me.role === "owner";
-  const canEdit = me.role !== "staff";
+  const canEdit = isManagerLevel(me.role);
 
   const today = manilaDateKey();
   const tomorrow = addDays(today, 1);

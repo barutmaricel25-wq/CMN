@@ -9,7 +9,7 @@ import { fmtDateTime, toCentavos } from "@/lib/util";
 import { audit } from "@/lib/actions";
 import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
 import { blankUser } from "@/lib/factories";
-import { inBranchOrder, Role, User } from "@/lib/types";
+import { inBranchOrder, Role, User, isManagerLevel, ROLES, ROLE_LABEL } from "@/lib/types";
 
 type Tab = "settings" | "users" | "branches" | "audit";
 
@@ -20,7 +20,7 @@ export default function AdminPage() {
 
   if (!session) return null;
   const me = db.users.find((u) => u.id === session.user_id)!;
-  if (me.role === "staff") return <p className="text-center text-slate-500 py-12">Managers and the owner only.</p>;
+  if (!isManagerLevel(me.role)) return <p className="text-center text-slate-500 py-12">Managers and the owner only.</p>;
 
   return (
     <div className="space-y-3">
@@ -288,7 +288,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
           <button key={u.id} disabled={!canManage} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex justify-between items-center" onClick={() => setEditing({ ...u })}>
             <div>
               <div className="text-sm font-semibold">{u.name} {!u.active && <span className="badge bg-slate-200 text-slate-500">inactive</span>}</div>
-              <div className="text-xs text-slate-500">{u.role} · {u.branch_id ? db.branches.find((b) => b.id === u.branch_id)?.name : "all branches"} · PIN {u.pin}</div>
+              <div className="text-xs text-slate-500">{ROLE_LABEL[u.role]} · {u.branch_id ? db.branches.find((b) => b.id === u.branch_id)?.name : "all branches"} · PIN {u.pin}</div>
             </div>
             {canManage && <span className="text-slate-300">✏️</span>}
           </button>
@@ -301,9 +301,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
             <input className="input" placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             <div className="flex gap-2">
               <select className="input" value={editing.role} onChange={(e) => setEditing({ ...editing, role: e.target.value as Role, branch_id: e.target.value === "owner" ? null : editing.branch_id ?? db.branches[0].id })}>
-                <option value="staff">staff</option>
-                <option value="manager">manager</option>
-                <option value="owner">owner</option>
+                {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               </select>
               {editing.role !== "owner" && (
                 <select className="input" value={editing.branch_id ?? ""} onChange={(e) => setEditing({ ...editing, branch_id: e.target.value })}>

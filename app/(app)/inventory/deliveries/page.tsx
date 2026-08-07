@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions";
 import { blankPDC } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, brandName } from "@/lib/util";
-import { DeliveryTerms, TERMS_LABEL } from "@/lib/types";
+import { DeliveryTerms, TERMS_LABEL, isManagerLevel } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
 export default function DeliveriesPage() {
@@ -34,7 +34,7 @@ export default function DeliveriesPage() {
   const me = db.users.find((u) => u.id === session.user_id)!;
 
   // Owner and branch managers only — never staff.
-  if (me.role === "staff") {
+  if (!isManagerLevel(me.role)) {
     return (
       <div className="card p-8 text-center">
         <div className="text-3xl mb-2">🔒</div>

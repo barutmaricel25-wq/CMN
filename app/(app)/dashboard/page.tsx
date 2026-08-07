@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { peso, manilaDateKey, daysAgoKey } from "@/lib/util";
+import { isManagerLevel } from "@/lib/types";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   AreaChart, Area,
@@ -23,7 +24,7 @@ export default function Dashboard() {
   const user = db.users.find((u) => u.id === session.user_id)!;
   const isOwner = user.role === "owner";
   // Owner and branch managers both see company-wide sales; staff do not.
-  const seesAllBranches = user.role !== "staff";
+  const seesAllBranches = isManagerLevel(user.role);
   const today = manilaDateKey();
   const monthPrefix = today.slice(0, 7);
   const myBranch = session.branch_id!;

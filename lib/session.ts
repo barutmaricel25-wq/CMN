@@ -3,7 +3,7 @@
 // Real deployment: Supabase Auth session + branch account; PIN identifies staff.
 import { useSyncExternalStore } from "react";
 import { getDB } from "./store";
-import { User } from "./types";
+import { isManagerLevel, User } from "./types";
 
 const KEY = "cmn-session-v1";
 export interface Session {
@@ -52,11 +52,15 @@ export function currentUser(): User | null {
 
 // Verify a PIN belongs to a user with at least the given role at this branch.
 // Returns the matching user or null. Used for privileged actions.
-export function verifyPin(pin: string, opts: { managerOnly?: boolean; branch_id?: string | null } = {}): User | null {
+export function verifyPin(
+  pin: string,
+  opts: { managerOnly?: boolean; allowAssistant?: boolean; branch_id?: string | null } = {}
+): User | null {
   const db = getDB();
   const match = db.users.find((u) => {
     if (!u.active || u.pin !== pin) return false;
-    if (opts.managerOnly && u.role === "staff") return false;
+    if (opts.managerOnly && !isManagerLevel(u.role) && !(opts.allowAssistant && u.role === "assistant_manager"))
+      return false;
     if (
       opts.branch_id &&
       u.role !== "owner" &&

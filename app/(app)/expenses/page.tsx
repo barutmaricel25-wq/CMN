@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
 import { saveExpense, deleteExpense } from "@/lib/actions";
 import { blankExpense } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, downloadCSV } from "@/lib/util";
-import { EXPENSE_CATEGORIES, Expense, ExpenseCategory } from "@/lib/types";
+import { EXPENSE_CATEGORIES, Expense, ExpenseCategory, isManagerLevel } from "@/lib/types";
 
 const CAT_ICON: Record<ExpenseCategory, string> = {
   "store rental": "🏠",
@@ -42,7 +42,7 @@ export default function ExpensesPage() {
   const me = db.users.find((u) => u.id === session.user_id)!;
   const isOwner = me.role === "owner";
   const branchId = session.branch_id!;
-  const canEdit = me.role !== "staff";
+  const canEdit = isManagerLevel(me.role);
 
   const rows = useMemo(() => {
     const scope = isOwner

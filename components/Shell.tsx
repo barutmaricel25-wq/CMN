@@ -8,7 +8,7 @@ import { useDB } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
 import { setSession, useSession } from "@/lib/session";
 import { brandName, matchesSearch, searchScore } from "@/lib/util";
-import { Role } from "@/lib/types";
+import { Role, isManagerLevel, ROLE_LABEL } from "@/lib/types";
 
 // `roles` limits who sees the link; omit to show it to everyone.
 type NavItem = { href: string; label: string; icon: string; roles?: Role[] };
@@ -65,7 +65,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const visibleNav = NAV.filter((l) => !l.roles || l.roles.includes(user.role));
 
   // Owners and managers can look at any branch; staff stay on their own.
-  const canSwitchBranch = user.role !== "staff";
+  const canSwitchBranch = isManagerLevel(user.role);
   const awayFromHome = user.role === "manager" && user.branch_id !== session.branch_id;
 
   const branchPicker = (className: string) => (
@@ -127,7 +127,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </span>
             <div className="hidden sm:block">
               <div className="text-xs font-semibold">{user.name}</div>
-              <div className="text-[10px] uppercase text-orange-300">{user.role}</div>
+              <div className="text-[10px] uppercase text-orange-300">{ROLE_LABEL[user.role]}</div>
             </div>
             <button
               className="text-xs bg-orange-900 rounded-lg px-2 py-1.5"

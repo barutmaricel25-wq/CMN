@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { downloadCSV, brandName } from "@/lib/util";
+import { isManagerLevel } from "@/lib/types";
 
 export default function ReorderPage() {
   const db = useDB();
@@ -14,7 +15,7 @@ export default function ReorderPage() {
   if (!session) return null;
   const user = db.users.find((u) => u.id === session.user_id)!;
   // Owner and managers can review every branch; staff see their own only.
-  const seesAllBranches = user.role !== "staff";
+  const seesAllBranches = isManagerLevel(user.role);
   const branches = seesAllBranches ? db.branches : db.branches.filter((b) => b.id === session.branch_id);
 
   const rows: { branch: string; product: string; brand: string; size: string; current: number; threshold: number; suggested: number; unit: string }[] = [];
