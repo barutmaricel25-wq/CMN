@@ -281,6 +281,8 @@ function ShopPasswordPanel({ me }: { me: User }) {
 function DevicesPanel({ me }: { me: User }) {
   const db = useDB();
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [keepThis, setKeepThis] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [flash, setFlash] = useState("");
@@ -306,6 +308,26 @@ function DevicesPanel({ me }: { me: User }) {
       id === here
         ? "Removed this device — it will ask for the shop password when you next open the app."
         : "Removed. That device is asked for the shop password the next time it has signal."
+    );
+  }
+
+  // Everything at once. Changing the password does the same thing, but this way
+  // the password the shop already knows stays as it is.
+  function removeAll(exceptThis: boolean) {
+    const ids = rows.map((d) => d.id).filter((id) => !(exceptThis && id === here));
+    const set = new Set(ids);
+    tx((d) => {
+      d.devices.forEach((x, i) => {
+        if (set.has(x.id)) d.devices[i] = { ...x, revoked: true };
+      });
+      audit(d, me.id, "delete", "device", "all", { removed: ids.length }, undefined);
+    });
+    setConfirmAll(false);
+    setFlash(
+      `Removed ${ids.length} device${ids.length !== 1 ? "s" : ""}. ` +
+        (exceptThis
+          ? "Each is asked for the shop password the next time it has signal. This one is untouched."
+          : "Every device, this one included, is asked for the shop password again.")
     );
   }
 
@@ -337,6 +359,35 @@ function DevicesPanel({ me }: { me: User }) {
           {flash} <span className="text-slate-400 font-normal">— tap to dismiss</span>
         </button>
       )}
+
+      {rows.length > 1 &&
+        (confirmAll ? (
+          <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
+            <p className="text-sm font-semibold text-red-800">
+              Remove {keepThis ? rows.length - 1 : rows.length} device
+              {(keepThis ? rows.length - 1 : rows.length) !== 1 ? "s" : ""}?
+            </p>
+            <p className="text-xs text-red-700 mt-0.5">
+              Every branch is asked for the shop password again the next time it has signal. Nobody loses any work, and
+              the password itself does not change — tell it to whoever should still have it.
+            </p>
+            <label className="flex items-center gap-2 text-xs font-semibold text-red-800 mt-2">
+              <input type="checkbox" className="w-4 h-4" checked={keepThis} onChange={(e) => setKeepThis(e.target.checked)} />
+              Leave this device signed in
+            </label>
+            <div className="flex gap-2 mt-2">
+              <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirmAll(false)}>Keep them</button>
+              <button className="btn-danger flex-1 !py-2" onClick={() => removeAll(keepThis)}>Yes, remove</button>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="btn-secondary w-full !py-2 text-red-700"
+            onClick={() => { setConfirming(null); setRenaming(null); setConfirmAll(true); }}
+          >
+            🗑 Remove all devices ({rows.length})
+          </button>
+        ))}
 
       <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl">
         {rows.map((d) => {
