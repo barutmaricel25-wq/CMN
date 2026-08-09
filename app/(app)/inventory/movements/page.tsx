@@ -5,6 +5,7 @@ import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, fmtQty } from "@/lib/util";
 import { MovementType } from "@/lib/types";
+import { isSampleRow } from "@/lib/demo";
 
 const TYPE_META: Record<MovementType, { label: string; cls: string }> = {
   delivery_in: { label: "Delivery in", cls: "bg-orange-100 text-orange-700" },
@@ -57,7 +58,14 @@ export default function MovementsPage() {
             <div key={m.id} className="px-4 py-2.5">
               <div className="flex justify-between items-start gap-2">
                 <div className="text-sm font-semibold truncate">{p?.name} <span className="text-slate-400 font-normal">{p?.size_variant}</span></div>
-                <span className={`badge ${meta.cls} whitespace-nowrap`}>{meta.label}</span>
+                <span className="flex gap-1 shrink-0">
+                  {/* Demo trading the app arrived with. Saying so on the row
+                      itself stops it being read as something a person did. */}
+                  {isSampleRow("stock_movements", m.id) && (
+                    <span className="badge bg-amber-100 text-amber-800 whitespace-nowrap">sample</span>
+                  )}
+                  <span className={`badge ${meta.cls} whitespace-nowrap`}>{meta.label}</span>
+                </span>
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
                 <b className="tabular-nums">{fmtQty(m.qty)}</b> {m.from_location ?? "—"} → {m.to_location ?? "—"} · {by?.name ?? "?"} · {fmtDateTime(m.created_at)}

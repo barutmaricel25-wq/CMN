@@ -9,6 +9,7 @@ import { fmtDateTime, toCentavos } from "@/lib/util";
 import { audit } from "@/lib/actions";
 import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
 import { deviceId } from "@/lib/device";
+import { clearSampleData, countSampleData, SAMPLE_LABEL, SampleTable } from "@/lib/demo";
 import { cloudEnabled, tableMissing } from "@/lib/cloud";
 import { blankUser } from "@/lib/factories";
 import { inBranchOrder, Role, User, isManagerLevel, ROLES, ROLE_LABEL } from "@/lib/types";
@@ -64,6 +65,7 @@ function SettingsTab({ isOwner, me }: { isOwner: boolean; me: User }) {
     <>
     {isOwner && <ShopPasswordPanel me={me} />}
     {isOwner && <DevicesPanel me={me} />}
+    {isOwner && <SampleDataPanel />}
     <div className="card p-4 space-y-3">
       <div>
         <label className="label">Receipt header</label>
@@ -271,6 +273,73 @@ function ShopPasswordPanel({ me }: { me: User }) {
             <button className="btn-primary flex-1" disabled={!canSave} onClick={save}>{busy ? "Saving…" : "Save password"}</button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// The demo trading the app arrived with. It is attributed to whichever staff
+// record sits at that id, so once the demo staff have been renamed to real
+// people it reads as though those people made the sales.
+function SampleDataPanel() {
+  const db = useDB();
+  const [confirming, setConfirming] = useState(false);
+  const [flash, setFlash] = useState("");
+  const counts = countSampleData(db);
+  const total = Object.values(counts).reduce((t, n) => t + n, 0);
+
+  if (!total && !flash) return null;
+
+  return (
+    <div className="card p-4 space-y-2 mb-3 border-amber-300 bg-amber-50">
+      <div className="label !mb-0">🧪 Sample data from the demo</div>
+      {flash ? (
+        <p className="text-sm font-semibold text-emerald-800">{flash}</p>
+      ) : (
+        <>
+          <p className="text-xs text-amber-900">
+            The app came with a fortnight of made-up trading so the dashboards weren&apos;t empty. It is filed against
+            the staff and branches it shipped with — so if those records were renamed to your people, their names now
+            appear on sales they never made. None of it is real.
+          </p>
+          <ul className="text-xs text-amber-900 font-semibold">
+            {(Object.keys(counts) as SampleTable[])
+              .filter((t) => counts[t] > 0)
+              .map((t) => (
+                <li key={t}>
+                  {counts[t]} {SAMPLE_LABEL[t]}
+                </li>
+              ))}
+          </ul>
+          {confirming ? (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
+              <p className="text-sm font-semibold text-red-800">Remove all {total} sample rows?</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                Only rows the app generated go. Your products, prices, customers, staff, branches, stock counts and
+                anything sold on the app are untouched — they are told apart by how their records were numbered, so
+                real work cannot be caught by this.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirming(false)}>Keep them</button>
+                <button
+                  className="btn-danger flex-1 !py-2"
+                  onClick={() => {
+                    const gone = clearSampleData();
+                    const n = Object.values(gone).reduce((t, x) => t + x, 0);
+                    setConfirming(false);
+                    setFlash(`✅ Removed ${n} sample rows. What is left is your own trading.`);
+                  }}
+                >
+                  Yes, remove
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-danger w-full !py-2" onClick={() => setConfirming(true)}>
+              🗑 Remove the sample trading ({total} rows)
+            </button>
+          )}
+        </>
       )}
     </div>
   );
