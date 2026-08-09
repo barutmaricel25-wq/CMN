@@ -1,7 +1,7 @@
 "use client";
 // Tells staff at a glance whether this device is on the shared database.
 import { useState } from "react";
-import { refreshFromCloud, uploadToCloud, useSync } from "@/lib/store";
+import { rebuildFromCloud, refreshFromCloud, uploadToCloud, useSync } from "@/lib/store";
 
 export default function SyncBadge({ full = false }: { full?: boolean }) {
   const { shared, state, error } = useSync();
@@ -96,11 +96,15 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
 function SyncButtons() {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
+  const [asking, setAsking] = useState(false);
 
-  const run = async (what: "down" | "up") => {
+  const run = async (what: "down" | "up" | "rebuild") => {
     setBusy(what);
     setMsg("");
-    setMsg(await (what === "down" ? refreshFromCloud() : uploadToCloud()));
+    setAsking(false);
+    setMsg(
+      await (what === "down" ? refreshFromCloud() : what === "up" ? uploadToCloud() : rebuildFromCloud())
+    );
     setBusy("");
   };
 
@@ -117,6 +121,25 @@ function SyncButtons() {
       <p className="text-[10px] text-slate-400 mt-1">
         Get latest = take what the other branches have. Send mine up = push what is on this device to everyone.
       </p>
+      {asking ? (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 mt-2">
+          <p className="text-xs font-semibold text-amber-900">
+            Replace everything on this device with the shared copy?
+          </p>
+          <p className="text-[11px] text-amber-800 mt-0.5">
+            For a branch still showing something the others have deleted. It reads the whole database again instead of
+            asking what changed. Anything this device hasn&apos;t sent yet goes up first, so nothing is lost.
+          </p>
+          <div className="flex gap-2 mt-2">
+            <button className="btn-ghost flex-1 !py-2 text-xs" onClick={() => setAsking(false)}>Cancel</button>
+            <button className="btn-primary flex-1 !py-2 text-xs" onClick={() => run("rebuild")}>Rebuild</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn-ghost w-full !py-2 text-xs mt-1" disabled={!!busy} onClick={() => setAsking(true)}>
+          {busy === "rebuild" ? "Rebuilding…" : "🔄 Rebuild from the shared database"}
+        </button>
+      )}
       {msg && <p className="text-xs font-semibold mt-1 break-words">{msg}</p>}
     </>
   );

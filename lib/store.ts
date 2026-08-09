@@ -280,15 +280,21 @@ function applyChanges(d: DB, c: Changes): number {
     });
   });
 
+  // Grouped, not one at a time: clearing the demo shop leaves fourteen thousand
+  // deletions, and searching the whole inventory for each of them in turn is
+  // long enough to lock up a phone.
+  const removals = new Map<Table, Set<string>>();
   c.deletions.forEach((del) => {
     const t = del.table_name as Table;
     if (!TABLES.includes(t)) return;
+    if (!removals.has(t)) removals.set(t, new Set());
+    removals.get(t)!.add(del.row_id);
+  });
+  removals.forEach((ids, t) => {
     const list = d[t] as unknown as { id: string }[];
-    const i = list.findIndex((r) => r.id === del.row_id);
-    if (i >= 0) {
-      list.splice(i, 1);
-      touched++;
-    }
+    const kept = list.filter((r) => !ids.has(r.id));
+    touched += list.length - kept.length;
+    (d[t] as unknown as { id: string }[]) = kept;
   });
 
   c.state.forEach((row) => {
@@ -477,6 +483,30 @@ export function tx(fn: (d: DB) => void) {
   // Cross-tab sync on one device (and the order board demo).
   if (typeof window !== "undefined") {
     try { window.dispatchEvent(new Event("cmn-db-changed")); } catch { /* noop */ }
+  }
+}
+
+// Throw away what this device has and take the shared copy whole. For a device
+// that has drifted — it missed something and its bookmark has already moved
+// past it, so asking "what changed since" will never mention it again.
+export async function rebuildFromCloud(): Promise<string> {
+  if (!cloudEnabled) return "This device isn't connected to a shared database.";
+  if (unsent) {
+    await flush();
+    if (unsent) return `⚠ This device has changes that haven't been sent yet: ${syncError}`;
+  }
+  try {
+    setSync("saving");
+    writeMark("");        // forget where we had got to
+    lastPushed = null;    // and force a full read rather than a diff
+    await pull();
+    setSync("online");
+    const d = db ?? load();
+    return `✅ Rebuilt from the shared database — ${d.products.filter((p) => p.active).length} products, ${d.customers.filter((c) => c.active).length} customers.`;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    setSync("error", msg);
+    return `⚠ Could not rebuild: ${msg}`;
   }
 }
 

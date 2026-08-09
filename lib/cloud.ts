@@ -233,15 +233,38 @@ async function changedSince(table: string, since: string): Promise<Row[]> {
   }
 }
 
+// What has been removed since. This has to be paged like everything else: a
+// single answer stops at a thousand rows, and clearing the demo shop leaves
+// about fourteen thousand notes behind. Taking the first thousand and moving
+// the bookmark past the rest is how a branch ends up still holding products
+// everyone else deleted.
+//
+// Ordering by the time alone is not enough either — a batch deletion stamps
+// hundreds of rows with the same time, and paging through equal values skips
+// and repeats. The row id settles it.
+async function deletionsSince(since: string): Promise<(Changes["deletions"][number] & { deleted_at?: string })[]> {
+  const out: (Changes["deletions"][number] & { deleted_at?: string })[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb()
+      .from("deletions")
+      .select("table_name,row_id,deleted_at")
+      .gt("deleted_at", since)
+      .order("deleted_at", { ascending: true })
+      .order("row_id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      if (skipIfMissing("deletions", error)) return out;
+      throw new Error(`deletions: ${error.message}`);
+    }
+    out.push(...((data ?? []) as typeof out));
+    if (!data || data.length < PAGE) return out;
+  }
+}
+
 export async function fetchChanges(since: string): Promise<Changes> {
   const lists = await Promise.all(TABLES.map((t) => changedSince(t, since)));
   const state = await changedSince("app_state", since);
-  const { data: dels, error } = await sb()
-    .from("deletions")
-    .select("table_name,row_id,deleted_at")
-    .gt("deleted_at", since);
-  if (error && !skipIfMissing("deletions", error)) throw new Error(`deletions: ${error.message}`);
-  const deletions = (dels ?? []) as (Changes["deletions"][number] & { deleted_at?: string })[];
+  const deletions = await deletionsSince(since);
 
   const watermark = markFrom(
     [...lists, state, deletions.map((x) => ({ id: x.row_id, updated_at: x.deleted_at })) as Row[]],
