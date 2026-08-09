@@ -380,7 +380,11 @@ export default function POSPage() {
   );
 }
 
-// How many kilos? Typed, or tapped from the amounts people actually ask for.
+// How much the − and + move by. Half a kilo is the smallest amount anyone
+// scoops; anything else is typed straight in.
+const STEP = 0.5;
+
+// How many kilos? Typed, or dialled up and down.
 function KiloSheet({
   product,
   already,
@@ -406,23 +410,32 @@ function KiloSheet({
           {product.name} {product.size_variant} — {peso(price)} per kilo
         </p>
         <label className="label">Kilos</label>
-        <input
-          className="input text-2xl font-bold"
-          type="number"
-          inputMode="decimal"
-          step="0.1"
-          min="0"
-          placeholder="0.0"
-          value={kg}
-          onChange={(e) => setKg(e.target.value)}
-          autoFocus
-        />
-        <div className="grid grid-cols-4 gap-2 mt-2">
-          {[0.5, 1, 2, 3, 5, 10].map((n) => (
-            <button key={n} className="btn-secondary !py-2 text-sm" onClick={() => setKg(String(n))}>
-              {n} kg
-            </button>
-          ))}
+        {/* Any weight, typed or dialled. Fixed amounts were no use — a customer
+            asks for what their dog eats, not for a round number. */}
+        <div className="flex items-center gap-2">
+          <button
+            className="btn-secondary !px-5 !py-3 text-xl"
+            onClick={() => setKg(String(Math.max(0, Math.round(((ok ? kilos : 0) - STEP) * 100) / 100)))}
+          >
+            −
+          </button>
+          <input
+            className="input text-2xl font-bold text-center"
+            type="number"
+            inputMode="decimal"
+            step={STEP}
+            min="0"
+            placeholder="0.0"
+            value={kg}
+            onChange={(e) => setKg(e.target.value)}
+            autoFocus
+          />
+          <button
+            className="btn-secondary !px-5 !py-3 text-xl"
+            onClick={() => setKg(String(Math.round(((ok ? kilos : 0) + STEP) * 100) / 100))}
+          >
+            +
+          </button>
         </div>
         <div className="mt-3 text-lg font-bold tabular-nums text-orange-700">
           {ok ? `${fmtQty(kilos)} kg = ${peso(Math.round(price * kilos))}` : "—"}
