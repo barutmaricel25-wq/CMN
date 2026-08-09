@@ -391,13 +391,15 @@ export default function ProductsPage() {
 }
 
 // Categories are not a list kept somewhere — a category exists because products
-// are filed under it. So the way to be rid of one is to move what is in it, and
-// the way to fix a name is to change it on everything at once. Both are the same
-// action: rename, and if the new name already exists the two merge.
+// are filed under it. So there are two honest ways to be rid of one: move what
+// is in it somewhere else (rename it to a category you keep, and the two merge),
+// or get rid of the products themselves. Both are here, and both say what they
+// are about to do first.
 function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
   const db = useDB();
   const session = useSession()!;
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [to, setTo] = useState("");
 
   const counts = new Map<string, number>();
@@ -428,13 +430,27 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
     );
   }
 
+  // Everything filed under the category goes. Anything ever sold, moved or
+  // still on a shelf is hidden instead of erased, so past receipts and the
+  // ledger still add up — the same rule as deleting products by hand.
+  function removeCategory(c: string) {
+    const ids = db.products.filter((p) => p.active && p.category === c).map((p) => p.id);
+    const { deleted, hidden } = deleteProducts(ids, session.user_id);
+    setRemoving(null);
+    onDone(
+      `🗑 Removed “${c}” — ${deleted} product${deleted !== 1 ? "s" : ""} deleted` +
+        (hidden ? `, ${hidden} hidden because of past sales or stock` : "") +
+        "."
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="card w-full max-w-md p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-bold text-lg">🗂 Categories</h3>
         <p className="text-xs text-slate-500 mt-1 mb-3">
-          One per worksheet of the price list you imported. To get rid of one, rename it to a category you are keeping —
-          everything in it moves across. A category with nothing in it disappears on its own.
+          One per worksheet of the price list you imported. ✏️ renames it — rename it to a category you already have and
+          the two merge. 🗑 removes the category together with everything filed under it.
         </p>
 
         <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl">
@@ -446,12 +462,43 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
                   <span className="text-xs text-slate-500">{n} product{n !== 1 ? "s" : ""}</span>
                   <button
                     className="btn-ghost !py-1 !px-2 text-xs"
-                    onClick={() => { setRenaming(renaming === c ? null : c); setTo(renaming === c ? "" : c); }}
+                    onClick={() => { setRemoving(null); setRenaming(renaming === c ? null : c); setTo(renaming === c ? "" : c); }}
                   >
                     ✏️
                   </button>
+                  <button
+                    className="btn-ghost !py-1 !px-2 text-xs"
+                    onClick={() => { setRenaming(null); setRemoving(removing === c ? null : c); }}
+                  >
+                    🗑
+                  </button>
                 </div>
               </div>
+
+              {removing === c && (
+                <div className="mt-2 rounded-xl border-2 border-red-300 bg-red-50 p-3">
+                  <p className="text-sm font-semibold text-red-800">
+                    Remove “{c}” and its {n} product{n !== 1 ? "s" : ""}?
+                  </p>
+                  {/* What is actually in there, so nothing goes on a guess. */}
+                  <p className="text-xs text-red-700 mt-1">
+                    {db.products
+                      .filter((p) => p.active && p.category === c)
+                      .slice(0, 3)
+                      .map((p) => brandName(p))
+                      .join(", ")}
+                    {n > 3 ? ` … and ${n - 3} more` : ""}
+                  </p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Anything ever sold or moved is hidden rather than erased, so old receipts still add up. Every branch
+                    sees this.
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button className="btn-ghost flex-1 !py-2" onClick={() => setRemoving(null)}>Keep</button>
+                    <button className="btn-danger flex-1 !py-2" onClick={() => removeCategory(c)}>Yes, remove</button>
+                  </div>
+                </div>
+              )}
               {renaming === c && (
                 <div className="mt-2 space-y-2">
                   <input
