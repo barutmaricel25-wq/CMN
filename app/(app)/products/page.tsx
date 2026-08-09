@@ -401,6 +401,8 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
   const [renaming, setRenaming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [to, setTo] = useState("");
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [confirmMany, setConfirmMany] = useState(false);
 
   const counts = new Map<string, number>();
   db.products.filter((p) => p.active).forEach((p) => counts.set(p.category, (counts.get(p.category) ?? 0) + 1));
@@ -433,16 +435,36 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
   // Everything filed under the category goes. Anything ever sold, moved or
   // still on a shelf is hidden instead of erased, so past receipts and the
   // ledger still add up — the same rule as deleting products by hand.
-  function removeCategory(c: string) {
-    const ids = db.products.filter((p) => p.active && p.category === c).map((p) => p.id);
+  function removeCategories(list: string[]) {
+    const set = new Set(list);
+    const ids = db.products.filter((p) => p.active && set.has(p.category)).map((p) => p.id);
     const { deleted, hidden } = deleteProducts(ids, session.user_id);
     setRemoving(null);
+    setConfirmMany(false);
+    setTicked(new Set());
+    const what = list.length === 1 ? `“${list[0]}”` : `${list.length} categories`;
     onDone(
-      `🗑 Removed “${c}” — ${deleted} product${deleted !== 1 ? "s" : ""} deleted` +
+      `🗑 Removed ${what} — ${deleted} product${deleted !== 1 ? "s" : ""} deleted` +
         (hidden ? `, ${hidden} hidden because of past sales or stock` : "") +
         "."
     );
   }
+
+  const tick = (c: string) =>
+    setTicked((s) => {
+      const n = new Set(s);
+      if (n.has(c)) n.delete(c); else n.add(c);
+      return n;
+    });
+
+  // The categories the app was built with, before any price list was imported.
+  // On a shop that has imported its own, these are leftovers — offered as one
+  // tick rather than twelve, but still ticked in plain sight before anything
+  // happens.
+  const builtIn = new Set<string>(CATEGORIES.map((c) => c.toLowerCase()));
+  const leftovers = names.filter((c) => builtIn.has(c.toLowerCase()));
+  const chosen = names.filter((c) => ticked.has(c));
+  const chosenProducts = chosen.reduce((t, c) => t + (counts.get(c) ?? 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -453,11 +475,28 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
           the two merge. 🗑 removes the category together with everything filed under it.
         </p>
 
+        {leftovers.length > 0 && (
+          <button
+            className="w-full text-left rounded-xl border border-amber-300 bg-amber-50 p-3 mb-3"
+            onClick={() => { setTicked(new Set(leftovers)); setRenaming(null); setRemoving(null); }}
+          >
+            <span className="text-sm font-semibold text-amber-900 block">
+              {leftovers.length} categor{leftovers.length === 1 ? "y" : "ies"} the app came with
+            </span>
+            <span className="text-xs text-amber-800">
+              {leftovers.join(", ")} — tap to tick them all, then check the list before removing.
+            </span>
+          </button>
+        )}
+
         <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl">
           {rows.map(([c, n]) => (
             <div key={c} className="px-3 py-2">
               <div className="flex justify-between items-center gap-2">
-                <span className="text-sm font-semibold min-w-0 truncate">{c}</span>
+                <label className="flex items-center gap-2 min-w-0 cursor-pointer">
+                  <input type="checkbox" className="w-5 h-5 shrink-0" checked={ticked.has(c)} onChange={() => tick(c)} />
+                  <span className="text-sm font-semibold min-w-0 truncate">{c}</span>
+                </label>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs text-slate-500">{n} product{n !== 1 ? "s" : ""}</span>
                   <button
@@ -495,7 +534,7 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
                   </p>
                   <div className="flex gap-2 mt-2">
                     <button className="btn-ghost flex-1 !py-2" onClick={() => setRemoving(null)}>Keep</button>
-                    <button className="btn-danger flex-1 !py-2" onClick={() => removeCategory(c)}>Yes, remove</button>
+                    <button className="btn-danger flex-1 !py-2" onClick={() => removeCategories([c])}>Yes, remove</button>
                   </div>
                 </div>
               )}
@@ -534,6 +573,35 @@ function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (ms
         <datalist id="cat-mgr-options">
           {names.map((c) => <option key={c} value={c} />)}
         </datalist>
+
+        {chosen.length > 0 &&
+          (confirmMany ? (
+            <div className="mt-3 rounded-xl border-2 border-red-300 bg-red-50 p-3">
+              <p className="text-sm font-semibold text-red-800">
+                Remove {chosen.length} categor{chosen.length === 1 ? "y" : "ies"} and {chosenProducts} product
+                {chosenProducts !== 1 ? "s" : ""}?
+              </p>
+              <p className="text-xs text-red-700 mt-1">{chosen.join(", ")}</p>
+              <p className="text-xs text-red-700 mt-1">
+                What is left: {names.filter((c) => !ticked.has(c)).join(", ") || "nothing"}.
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                Anything ever sold or moved is hidden rather than erased, so old receipts still add up. Every branch
+                sees this.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirmMany(false)}>Keep them</button>
+                <button className="btn-danger flex-1 !py-2" onClick={() => removeCategories(chosen)}>Yes, remove</button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex gap-2 items-center">
+              <button className="btn-ghost !py-2" onClick={() => setTicked(new Set())}>Untick all</button>
+              <button className="btn-danger flex-1 !py-2" onClick={() => setConfirmMany(true)}>
+                🗑 Remove {chosen.length} · {chosenProducts} product{chosenProducts !== 1 ? "s" : ""}
+              </button>
+            </div>
+          ))}
 
         <button className="btn-ghost w-full mt-3" onClick={onClose}>Close</button>
       </div>
