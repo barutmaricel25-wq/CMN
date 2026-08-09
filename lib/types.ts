@@ -409,6 +409,21 @@ export interface Settings {
   shop_password_set_at: string;
 }
 
+// A phone or computer that has been let in with the shop password. Kept in the
+// shared database so the owner can see the lot and cut one off from anywhere.
+export interface Device {
+  id: string;
+  name: string;          // renameable — "Unit 17 counter phone"
+  detected: string;      // what the browser says it is
+  branch_id: string;     // where it was last used
+  last_user_id: string;  // who last signed in on it
+  first_seen: string;
+  last_seen: string;
+  // Access taken away. The row stays: the device has to be told it is out, and
+  // it is only told the next time it reaches the shared database.
+  revoked: boolean;
+}
+
 export interface DB {
   seeded_at: string;
   branches: Branch[];
@@ -429,6 +444,7 @@ export interface DB {
   pdc_checks: PDCCheck[];
   payroll: PayrollRecord[];
   audit_log: AuditLog[];
+  devices: Device[];
   settings: Settings;
   receipt_counters: Record<string, number>; // branch_id -> last receipt no
 }

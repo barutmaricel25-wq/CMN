@@ -1,13 +1,14 @@
 "use client";
 // Admin & Settings: branches, users/PINs, receipt text, paper width,
 // low-stock default, payroll rates, audit log viewer, demo reset.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDB, tx, resetDemo } from "@/lib/store";
 import SyncBadge from "@/components/SyncBadge";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, toCentavos } from "@/lib/util";
 import { audit } from "@/lib/actions";
 import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
+import { deviceId } from "@/lib/device";
 import { blankUser } from "@/lib/factories";
 import { inBranchOrder, Role, User, isManagerLevel, ROLES, ROLE_LABEL } from "@/lib/types";
 
@@ -61,6 +62,7 @@ function SettingsTab({ isOwner, me }: { isOwner: boolean; me: User }) {
   return (
     <>
     {isOwner && <ShopPasswordPanel me={me} />}
+    {isOwner && <DevicesPanel me={me} />}
     <div className="card p-4 space-y-3">
       <div>
         <label className="label">Receipt header</label>
@@ -269,6 +271,149 @@ function ShopPasswordPanel({ me }: { me: User }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Every phone and computer that has been let in with the shop password. The
+// point of the list is the Remove button: with one password shared by everyone,
+// this is how a single phone is cut off without changing it for the whole shop.
+function DevicesPanel({ me }: { me: User }) {
+  const db = useDB();
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [flash, setFlash] = useState("");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const here = mounted ? deviceId() : "";
+  const rows = db.devices
+    .filter((d) => !d.revoked)
+    .sort((a, b) => b.last_seen.localeCompare(a.last_seen));
+
+  const locked = Boolean(db.settings.shop_password);
+
+  function remove(id: string) {
+    const dev = db.devices.find((d) => d.id === id);
+    tx((d) => {
+      const i = d.devices.findIndex((x) => x.id === id);
+      if (i >= 0) d.devices[i] = { ...d.devices[i], revoked: true };
+      audit(d, me.id, "delete", "device", id, dev, undefined);
+    });
+    setConfirming(null);
+    setFlash(
+      id === here
+        ? "Removed this device — it will ask for the shop password when you next open the app."
+        : "Removed. That device is asked for the shop password the next time it has signal."
+    );
+  }
+
+  function rename(id: string) {
+    tx((d) => {
+      const i = d.devices.findIndex((x) => x.id === id);
+      if (i >= 0) d.devices[i] = { ...d.devices[i], name: name.trim() };
+    });
+    setRenaming(null);
+    setName("");
+  }
+
+  return (
+    <div className="card p-4 space-y-2 mb-3">
+      <div className="label !mb-0">📱 Devices using the app</div>
+      {!locked && (
+        <p className="text-xs font-semibold text-amber-800">
+          No shop password is set, so removing a device does nothing yet — anyone with the link can open the app. Set
+          one above first.
+        </p>
+      )}
+      <p className="text-xs text-slate-500">
+        Every phone and computer that has been let in. Removing one asks it for the shop password again — use it when a
+        phone is lost or someone leaves, instead of changing the password for everybody.
+      </p>
+
+      {flash && (
+        <button className="text-xs font-semibold text-orange-800 text-left" onClick={() => setFlash("")}>
+          {flash} <span className="text-slate-400 font-normal">— tap to dismiss</span>
+        </button>
+      )}
+
+      <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl">
+        {rows.map((d) => {
+          const user = db.users.find((u) => u.id === d.last_user_id);
+          const branch = db.branches.find((b) => b.id === d.branch_id);
+          return (
+            <div key={d.id} className="px-3 py-2">
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0">
+                  {/* The badge sits outside the truncating name, or the one
+                      thing the owner most needs to see is the first to go. */}
+                  <div className="text-sm font-semibold flex items-center gap-2">
+                    <span className="truncate">{d.name || d.detected}</span>
+                    {d.id === here && (
+                      <span className="badge shrink-0 bg-emerald-100 text-emerald-700">this device</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {[d.name && d.detected, branch?.name, user && `last used by ${user.name}`, fmtDateTime(d.last_seen)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    className="btn-ghost !py-1 !px-2 text-xs"
+                    onClick={() => { setConfirming(null); setRenaming(renaming === d.id ? null : d.id); setName(d.name); }}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className="btn-ghost !py-1 !px-2 text-xs text-red-700"
+                    onClick={() => { setRenaming(null); setConfirming(confirming === d.id ? null : d.id); }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              {renaming === d.id && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    className="input flex-1"
+                    autoFocus
+                    placeholder="e.g. Unit 17 counter phone"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <button className="btn-primary !py-2" onClick={() => rename(d.id)}>Save</button>
+                </div>
+              )}
+
+              {confirming === d.id && (
+                <div className="mt-2 rounded-xl border-2 border-red-300 bg-red-50 p-3">
+                  <p className="text-sm font-semibold text-red-800">
+                    Remove {d.name || d.detected}
+                    {d.id === here ? " — the device you are using now?" : "?"}
+                  </p>
+                  <p className="text-xs text-red-700 mt-0.5">
+                    It keeps working until it next reaches the internet, then asks for the shop password. Whoever has
+                    the password can let it back in.
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirming(null)}>Keep</button>
+                    <button className="btn-danger flex-1 !py-2" onClick={() => remove(d.id)}>Yes, remove</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <p className="text-center text-sm text-slate-400 py-6">
+            No devices listed yet — they appear as each one opens the app.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

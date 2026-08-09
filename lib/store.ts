@@ -141,6 +141,7 @@ function normalize(raw: unknown, fillEmpty = true): DB {
     sss_loan: r.sss_loan ?? 0,
   }));
   d.audit_log = arr<DB["audit_log"][number]>(d.audit_log);
+  d.devices = arr<DB["devices"][number]>(d.devices);
   d.receipt_counters = (d.receipt_counters ?? {}) as Record<string, number>;
 
   d.settings = { ...seed.settings, ...(d.settings ?? {}) };

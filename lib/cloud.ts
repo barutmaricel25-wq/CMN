@@ -52,6 +52,7 @@ export const TABLES = [
   "pdc_checks",
   "payroll",
   "audit_log",
+  "devices",
 ] as const;
 export type Table = (typeof TABLES)[number];
 

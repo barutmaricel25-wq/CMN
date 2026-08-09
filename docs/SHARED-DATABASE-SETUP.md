@@ -146,6 +146,16 @@ The password is stored scrambled, in the shared database, so it applies to every
 branch — and nobody can read it back out of the app. That also means it can't be
 recovered if it's forgotten; the owner just sets a new one.
 
+**Devices.** Underneath it, **Devices using the app** lists every phone and
+computer that has been let in, with the branch, who last used it and when. Each
+can be renamed ("Unit 17 counter phone") and removed. Removing one asks *that*
+device for the password again and leaves everyone else alone — the thing to
+reach for when a phone is lost or someone leaves, rather than changing the
+password for the whole shop. A removed device keeps working until it next
+reaches the internet; whoever knows the password can let it back in.
+
+This needs `0007_devices.sql` to have been run.
+
 **How syncing works.** The first time a device connects it reads everything
 once. After that it only asks what changed since it last looked, so a refresh
 on a quiet minute fetches nothing at all and a price changed at another branch

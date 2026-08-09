@@ -331,6 +331,7 @@ export function buildSeed(): DB {
       shop_password: "",
       shop_password_set_at: "",
     },
+    devices: [],
     receipt_counters,
   };
 }
