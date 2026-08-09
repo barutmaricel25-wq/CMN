@@ -276,9 +276,15 @@ export function adjustStock(
 // ---------- POS ----------
 export interface CartLine {
   product_id: string;
+  // Kilos when by_kilo, otherwise packs/pieces.
   qty: number;
   unit_price: number;
   tier: CustomerType;
+  by_kilo?: boolean;
+  // What to take off the shelf. Only set for kilo sales, where it is the
+  // fraction of a pack; null when the weight of a pack isn't known, and then
+  // nothing is deducted and the stock count sorts it out.
+  stock_qty?: number | null;
 }
 
 export function completeSale(args: {
@@ -307,15 +313,19 @@ export function completeSale(args: {
     };
     d.sales.push(sale);
     args.lines.forEach((l) => {
+      const byKilo = Boolean(l.by_kilo);
+      const off = byKilo ? (l.stock_qty ?? 0) : l.qty;
       const si: SaleItem = {
         id: uid(), sale_id: id, product_id: l.product_id,
         qty: l.qty, unit_price: l.unit_price, price_tier_applied: l.tier,
+        by_kilo: byKilo, stock_qty: byKilo ? l.stock_qty ?? null : null,
       };
       d.sale_items.push(si);
       applyMovement(d, {
         product_id: l.product_id, branch_id: args.branch_id,
         from_location: "storefront", to_location: null,
-        qty: l.qty, type: "sale", reference_id: id, performed_by: args.cashier_id,
+        qty: off, type: "sale", reference_id: id, performed_by: args.cashier_id,
+        note: byKilo ? `${l.qty} kg sold loose` : null,
       });
     });
     audit(d, args.cashier_id, "sale", "sale", id, undefined, { total: sale.total, receipt_no: sale.receipt_no });
@@ -337,7 +347,9 @@ export function voidSale(sale_id: string, approved_by: string, reason: string) {
         applyMovement(d, {
           product_id: i.product_id, branch_id: sale.branch_id,
           from_location: null, to_location: "storefront",
-          qty: i.qty, type: "return", reference_id: sale_id,
+          // Put back what was taken off the shelf, which for a kilo sale is a
+          // fraction of a sack rather than the kilos written on the receipt.
+          qty: i.by_kilo ? i.stock_qty ?? 0 : i.qty, type: "return", reference_id: sale_id,
           performed_by: approved_by, note: `void: ${reason}`,
         });
       });

@@ -264,9 +264,15 @@ export interface SaleItem {
   id: string;
   sale_id: string;
   product_id: string;
+  // What was sold. For a sack sold loose this is kilos, not sacks.
   qty: number;
   unit_price: number;
   price_tier_applied: CustomerType;
+  // Sold by the kilo out of an opened sack rather than as a whole pack.
+  by_kilo: boolean;
+  // How much came off the shelf, in whole packs — 2.5 kg out of a 20 kg sack
+  // is 0.125 of a sack. Null means the same as qty, which is the normal case.
+  stock_qty: number | null;
 }
 
 export interface OnlineOrderItem {

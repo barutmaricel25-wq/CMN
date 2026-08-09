@@ -173,7 +173,7 @@ export function buildSeed(): DB {
           const qty = p.retail_price > P(1000) ? 1 : 1 + Math.floor(rand() * 3);
           const price = tier === "wholesaler" ? p.wholesale_price : tier === "suki" ? (p.suki_price ?? p.retail_price) : p.retail_price;
           subtotal += price * qty;
-          itemsForSale.push({ id: `${saleId}-i${it}`, sale_id: saleId, product_id: p.id, qty, unit_price: price, price_tier_applied: tier });
+          itemsForSale.push({ id: `${saleId}-i${it}`, sale_id: saleId, product_id: p.id, qty, unit_price: price, price_tier_applied: tier, by_kilo: false, stock_qty: null });
           movements.push({
             id: `${saleId}-m${it}`, product_id: p.id, branch_id: b.id,
             from_location: "storefront", to_location: null, qty,

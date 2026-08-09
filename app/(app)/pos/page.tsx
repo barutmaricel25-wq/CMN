@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { completeSale, priceFor, voidSale, CartLine } from "@/lib/actions";
-import { peso, toCentavos } from "@/lib/util";
+import { peso, toCentavos, fmtQty, packKg, sellableByKilo } from "@/lib/util";
 import { CustomerType, PaymentMethod, Product, Sale, User } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import CustomerPicker from "@/components/CustomerPicker";
@@ -31,6 +31,7 @@ export default function POSPage() {
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [notFound, setNotFound] = useState("");
   const [voidPin, setVoidPin] = useState(false);
+  const [kiloFor, setKiloFor] = useState<Product | null>(null);
 
   // Cart persistence across refreshes
   useEffect(() => {
@@ -60,13 +61,40 @@ export default function POSPage() {
   function addProduct(p: Product) {
     setNotFound("");
     setCart((c) => {
-      const idx = c.lines.findIndex((l) => l.product_id === p.id);
+      // The same sack can be on the cart twice: two whole ones and 3 kg loose.
+      // Adding a pack must never land on the loose line, or a sack becomes 1 kg.
+      const idx = c.lines.findIndex((l) => l.product_id === p.id && !l.by_kilo);
       if (idx >= 0) {
         const lines = [...c.lines];
         lines[idx] = { ...lines[idx], qty: lines[idx].qty + 1 };
         return { ...c, lines };
       }
       return { ...c, lines: [...c.lines, { product_id: p.id, qty: 1, unit_price: priceFor(p, tier), tier }] };
+    });
+  }
+
+  // Loose out of an opened sack: the line is in kilos at the per-kilo price,
+  // and what comes off the shelf is the fraction of a sack that weight is.
+  function addKilos(p: Product, kilos: number) {
+    if (!(kilos > 0)) return;
+    const pack = packKg(p);
+    setNotFound("");
+    setCart((c) => {
+      const idx = c.lines.findIndex((l) => l.product_id === p.id && l.by_kilo);
+      const line = (qty: number) => ({
+        product_id: p.id,
+        qty: Math.round(qty * 1000) / 1000,
+        unit_price: p.per_kilo ?? 0,
+        tier,
+        by_kilo: true,
+        stock_qty: pack ? Math.round((qty / pack) * 1000) / 1000 : null,
+      });
+      if (idx >= 0) {
+        const lines = [...c.lines];
+        lines[idx] = line(lines[idx].qty + kilos);
+        return { ...c, lines };
+      }
+      return { ...c, lines: [...c.lines, line(kilos)] };
     });
   }
 
@@ -84,7 +112,8 @@ export default function POSPage() {
       customer_id: id,
       lines: c.lines.map((l) => {
         const p = db.products.find((pp) => pp.id === l.product_id)!;
-        return { ...l, unit_price: priceFor(p, t), tier: t };
+        // A kilo price is the same for everyone — it is not one of the tiers.
+        return { ...l, unit_price: l.by_kilo ? l.unit_price : priceFor(p, t), tier: t };
       }),
     }));
   }
@@ -103,6 +132,14 @@ export default function POSPage() {
           )
           .slice(0, 8)
       : [];
+
+  // Changing the amount on a line keeps the shelf figure in step with it.
+  function reQty(l: CartLine, p: Product, qty: number): CartLine {
+    const q = Math.round(qty * 1000) / 1000;
+    if (!l.by_kilo) return { ...l, qty: q };
+    const pack = packKg(p);
+    return { ...l, qty: q, stock_qty: pack ? Math.round((q / pack) * 1000) / 1000 : null };
+  }
 
   function finishSale(cashier: User, method: PaymentMethod) {
     const sale = completeSale({
@@ -137,19 +174,30 @@ export default function POSPage() {
         {results.length > 0 && (
           <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
             {results.map((p) => (
-              <button
-                key={p.id}
-                className="w-full text-left px-3 py-2.5 hover:bg-orange-50 flex justify-between items-center"
-                onClick={() => { addProduct(p); setSearch(""); }}
-              >
-                <span className="text-sm">
-                  {p.name} <span className="text-slate-400">{p.size_variant}</span>
-                  <span className={`ml-2 text-xs ${ (storefrontQty.get(p.id) ?? 0) <= 0 ? "text-red-600 font-bold" : "text-slate-400"}`}>
-                    SF: {storefrontQty.get(p.id) ?? 0}
+              <div key={p.id} className="flex items-stretch">
+                <button
+                  className="flex-1 text-left px-3 py-2.5 hover:bg-orange-50 flex justify-between items-center min-w-0"
+                  onClick={() => { addProduct(p); setSearch(""); }}
+                >
+                  <span className="text-sm min-w-0">
+                    {p.name} <span className="text-slate-400">{p.size_variant}</span>
+                    <span className={`ml-2 text-xs ${ (storefrontQty.get(p.id) ?? 0) <= 0 ? "text-red-600 font-bold" : "text-slate-400"}`}>
+                      SF: {fmtQty(storefrontQty.get(p.id) ?? 0)}
+                    </span>
                   </span>
-                </span>
-                <span className="font-bold text-sm">{peso(priceFor(p, tier))}</span>
-              </button>
+                  <span className="font-bold text-sm whitespace-nowrap ml-2">{peso(priceFor(p, tier))}</span>
+                </button>
+                {/* Sacks are also sold loose. One tap to say so, rather than
+                    making the cashier work out the price. */}
+                {sellableByKilo(p) && (
+                  <button
+                    className="px-3 text-xs font-bold text-orange-800 bg-orange-50 border-l border-orange-100 whitespace-nowrap"
+                    onClick={() => { setKiloFor(p); setSearch(""); }}
+                  >
+                    ⚖️ per kilo
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -177,23 +225,37 @@ export default function POSPage() {
           {cart.lines.map((l, idx) => {
             const p = db.products.find((pp) => pp.id === l.product_id)!;
             const sf = storefrontQty.get(p.id) ?? 0;
+            // A kilo line takes a fraction of a sack off the floor, so that is
+            // what has to be checked against — not the kilos.
+            const needs = l.by_kilo ? l.stock_qty ?? 0 : l.qty;
+            const step = l.by_kilo ? 0.5 : 1;
             return (
-              <div key={l.product_id} className="py-2">
+              <div key={`${l.product_id}${l.by_kilo ? "-kg" : ""}`} className="py-2">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold truncate">{p.name}</div>
+                    <div className="text-sm font-semibold truncate">
+                      {p.name}
+                      {l.by_kilo && <span className="badge ml-2 bg-orange-100 text-orange-800">per kilo</span>}
+                    </div>
                     <div className="text-xs text-slate-500">
-                      {p.size_variant} · {peso(l.unit_price)} ({l.tier})
-                      {l.qty > sf && <span className="text-red-600 font-bold ml-1">⚠ only {sf} on floor</span>}
+                      {l.by_kilo
+                        ? `${peso(l.unit_price)} / kg${l.stock_qty === null ? " · stock unchanged" : ` · ${fmtQty(l.stock_qty ?? 0)} of a ${p.size_variant || "sack"}`}`
+                        : `${p.size_variant} · ${peso(l.unit_price)} (${l.tier})`}
+                      {needs > sf && <span className="text-red-600 font-bold ml-1">⚠ only {fmtQty(sf)} on floor</span>}
                     </div>
                   </div>
                   <button className="text-slate-400 px-2" onClick={() => setCart((c) => ({ ...c, lines: c.lines.filter((_, i) => i !== idx) }))}>✕</button>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center gap-1">
-                    <button className="btn-secondary !px-4 !py-1.5" onClick={() => setCart((c) => ({ ...c, lines: c.lines.map((x, i) => i === idx ? { ...x, qty: Math.max(1, x.qty - 1) } : x) }))}>−</button>
-                    <span className="w-10 text-center font-bold tabular-nums">{l.qty}</span>
-                    <button className="btn-secondary !px-4 !py-1.5" onClick={() => setCart((c) => ({ ...c, lines: c.lines.map((x, i) => i === idx ? { ...x, qty: x.qty + 1 } : x) }))}>+</button>
+                    <button className="btn-secondary !px-4 !py-1.5" onClick={() => setCart((c) => ({ ...c, lines: c.lines.map((x, i) => i === idx ? reQty(x, p, Math.max(step, x.qty - step)) : x) }))}>−</button>
+                    <button
+                      className="w-16 text-center font-bold tabular-nums"
+                      onClick={() => { if (l.by_kilo) setKiloFor(p); }}
+                    >
+                      {fmtQty(l.qty)}{l.by_kilo ? " kg" : ""}
+                    </button>
+                    <button className="btn-secondary !px-4 !py-1.5" onClick={() => setCart((c) => ({ ...c, lines: c.lines.map((x, i) => i === idx ? reQty(x, p, x.qty + step) : x) }))}>+</button>
                     <button className="btn-ghost !py-1.5 text-xs" onClick={() => setOverridePin({ idx })}>✏️ price</button>
                   </div>
                   <div className="font-bold tabular-nums">{peso(l.unit_price * l.qty)}</div>
@@ -234,6 +296,22 @@ export default function POSPage() {
         </div>
       )}
       {lastSale && <Receipt db={db} sale={db.sales.find((s) => s.id === lastSale.id) ?? lastSale} />}
+
+      {kiloFor && (
+        <KiloSheet
+          product={kiloFor}
+          already={cart.lines.find((l) => l.product_id === kiloFor.id && l.by_kilo)?.qty ?? 0}
+          onCancel={() => setKiloFor(null)}
+          onSet={(kilos) => {
+            setCart((c) => {
+              const rest = c.lines.filter((l) => !(l.product_id === kiloFor.id && l.by_kilo));
+              return { ...c, lines: rest };
+            });
+            addKilos(kiloFor, kilos);
+            setKiloFor(null);
+          }}
+        />
+      )}
 
       {payOpen && (
         <PaymentSheet
@@ -289,6 +367,69 @@ export default function POSPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// How many kilos? Typed, or tapped from the amounts people actually ask for.
+function KiloSheet({
+  product,
+  already,
+  onSet,
+  onCancel,
+}: {
+  product: Product;
+  already: number;
+  onSet: (kilos: number) => void;
+  onCancel: () => void;
+}) {
+  const [kg, setKg] = useState(already ? String(already) : "");
+  const kilos = parseFloat(kg.replace(/[^0-9.]/g, ""));
+  const ok = Number.isFinite(kilos) && kilos > 0;
+  const price = product.per_kilo ?? 0;
+  const pack = packKg(product);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="card w-full max-w-md p-5 rounded-b-none sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold">⚖️ Sell by the kilo</h3>
+        <p className="text-sm text-slate-500 mb-3">
+          {product.name} {product.size_variant} — {peso(price)} per kilo
+        </p>
+        <label className="label">Kilos</label>
+        <input
+          className="input text-2xl font-bold"
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="0"
+          placeholder="0.0"
+          value={kg}
+          onChange={(e) => setKg(e.target.value)}
+          autoFocus
+        />
+        <div className="grid grid-cols-4 gap-2 mt-2">
+          {[0.5, 1, 2, 3, 5, 10].map((n) => (
+            <button key={n} className="btn-secondary !py-2 text-sm" onClick={() => setKg(String(n))}>
+              {n} kg
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 text-lg font-bold tabular-nums text-orange-700">
+          {ok ? `${fmtQty(kilos)} kg = ${peso(Math.round(price * kilos))}` : "—"}
+        </div>
+        <p className="text-xs text-slate-500 mt-1">
+          {pack
+            ? `Comes off the floor as ${ok ? fmtQty(Math.round((kilos / pack) * 1000) / 1000) : "part"} of a ${pack} kg sack.`
+            : "The sack weight isn't on the price list, so the stock count won't change — put it right at the next count."}
+        </p>
+        <div className="flex gap-2 mt-4">
+          <button className="btn-ghost flex-1" onClick={onCancel}>Cancel</button>
+          <button className="btn-primary flex-1" disabled={!ok} onClick={() => onSet(kilos)}>
+            {already ? "Set" : "Add to cart"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { fmtDateTime } from "@/lib/util";
+import { fmtDateTime, fmtQty } from "@/lib/util";
 import { MovementType } from "@/lib/types";
 
 const TYPE_META: Record<MovementType, { label: string; cls: string }> = {
@@ -60,7 +60,7 @@ export default function MovementsPage() {
                 <span className={`badge ${meta.cls} whitespace-nowrap`}>{meta.label}</span>
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                <b className="tabular-nums">{m.qty}</b> {m.from_location ?? "—"} → {m.to_location ?? "—"} · {by?.name ?? "?"} · {fmtDateTime(m.created_at)}
+                <b className="tabular-nums">{fmtQty(m.qty)}</b> {m.from_location ?? "—"} → {m.to_location ?? "—"} · {by?.name ?? "?"} · {fmtDateTime(m.created_at)}
                 {m.note && <span className="text-amber-700"> · {m.note}</span>}
               </div>
             </div>

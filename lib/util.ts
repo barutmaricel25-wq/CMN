@@ -119,6 +119,34 @@ export function matchesCustomer(c: SearchableCustomer, q: string): boolean {
   return t.every((term) => hay.includes(term));
 }
 
+// How much a pack weighs, read from the size on the price list ("20kg",
+// "22.7kg"). Grams are ignored on purpose: an 85 g pouch is not something
+// anyone sells by the kilo, and treating it as one would take 29 pouches off
+// the shelf for a 2.5 kg sale.
+export function packKg(p: { size_variant?: string; name?: string; unit?: string }): number | null {
+  const from = (t: string) => {
+    const m = /(\d+(?:\.\d+)?)\s*kgs?\b/i.exec(t || "");
+    const n = m ? parseFloat(m[1]) : NaN;
+    return Number.isFinite(n) && n >= 1 ? n : null;
+  };
+  return from(p.size_variant ?? "") ?? from(p.name ?? "");
+}
+
+// Can this be sold loose? It needs a per-kilo price, and it has to be something
+// that comes in a sack — a piece or a pouch is sold as one.
+export function sellableByKilo(p: { per_kilo?: number | null; unit?: string; size_variant?: string; name?: string }): boolean {
+  if (!p.per_kilo || p.per_kilo <= 0) return false;
+  if (packKg(p)) return true;
+  return /sack|bag/i.test(p.unit ?? "");
+}
+
+// Quantities can now be fractions of a sack. Show 12 as "12" and 12.375 as
+// "12.38" rather than a row of decimals nobody counts in.
+export function fmtQty(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  return String(Math.round(n * 100) / 100);
+}
+
 // Medicines are priced by the piece, not by weight, so the last price column
 // is labelled to match whichever the category is.
 export function perUnitLabel(category: string): string {

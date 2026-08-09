@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { adjustStock } from "@/lib/actions";
-import { peso, brandName } from "@/lib/util";
+import { peso, brandName, fmtQty } from "@/lib/util";
 import { CATEGORIES, categoriesOf, Location, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import PinModal from "@/components/PinModal";
@@ -152,16 +152,16 @@ export default function InventoryPage() {
                     </div>
                   </div>
                   {isOtherBranch ? (
-                    <div className="text-center font-bold tabular-nums text-sm">{sr}</div>
+                    <div className="text-center font-bold tabular-nums text-sm">{fmtQty(sr)}</div>
                   ) : (
-                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "stockroom" })}>{sr}</button>
+                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "stockroom" })}>{fmtQty(sr)}</button>
                   )}
                   {isOtherBranch ? (
-                    <div className="text-center font-bold tabular-nums text-sm">{sf}</div>
+                    <div className="text-center font-bold tabular-nums text-sm">{fmtQty(sf)}</div>
                   ) : (
-                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "storefront" })}>{sf}</button>
+                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "storefront" })}>{fmtQty(sf)}</button>
                   )}
-                  <div className={`text-center font-extrabold tabular-nums text-sm ${low ? "text-red-600" : ""}`}>{total}</div>
+                  <div className={`text-center font-extrabold tabular-nums text-sm ${low ? "text-red-600" : ""}`}>{fmtQty(total)}</div>
                 </div>
               ))}
               {rows.length === 0 && <p className="text-center text-slate-400 py-8 text-sm">No products match</p>}
@@ -198,7 +198,7 @@ export default function InventoryPage() {
                     {per.map((n, i) => (
                       <td key={i} className={`px-2 py-2 text-center tabular-nums font-semibold ${n <= 0 ? "text-red-500" : ""}`}>{n}</td>
                     ))}
-                    <td className={`px-2 py-2 text-center font-extrabold tabular-nums ${low ? "text-red-600" : ""}`}>{total}</td>
+                    <td className={`px-2 py-2 text-center font-extrabold tabular-nums ${low ? "text-red-600" : ""}`}>{fmtQty(total)}</td>
                   </tr>
                 ))}
                 {compareRows.length === 0 && (

@@ -128,7 +128,11 @@ function normalize(raw: unknown, fillEmpty = true): DB {
   d.transfers = arr<DB["transfers"][number]>(d.transfers);
   d.transfer_items = arr<DB["transfer_items"][number]>(d.transfer_items);
   d.sales = arr<DB["sales"][number]>(d.sales);
-  d.sale_items = arr<DB["sale_items"][number]>(d.sale_items);
+  d.sale_items = arr<DB["sale_items"][number]>(d.sale_items).map((i) => ({
+    ...i,
+    by_kilo: i.by_kilo ?? false,
+    stock_qty: i.stock_qty ?? null,
+  }));
   d.online_orders = arr<DB["online_orders"][number]>(d.online_orders);
   d.attendance = arr<DB["attendance"][number]>(d.attendance);
   d.expenses = arr<DB["expenses"][number]>(d.expenses);

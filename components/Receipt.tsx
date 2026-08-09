@@ -2,7 +2,7 @@
 // Print-optimized receipt rendered into #receipt-print (see globals.css @media print).
 // Works with 58mm/80mm thermal printers via browser print or RawBT on Android.
 import { DB, Sale } from "@/lib/types";
-import { peso, fmtDateTime } from "@/lib/util";
+import { peso, fmtDateTime, fmtQty } from "@/lib/util";
 
 export default function Receipt({ db, sale }: { db: DB; sale: Sale }) {
   const branch = db.branches.find((b) => b.id === sale.branch_id);
@@ -26,12 +26,14 @@ export default function Receipt({ db, sale }: { db: DB; sale: Sale }) {
         const p = db.products.find((pp) => pp.id === i.product_id);
         return (
           <div key={i.id}>
-            <div>{p?.name} {p?.size_variant}</div>
+            <div>{p?.name} {i.by_kilo ? "(loose)" : p?.size_variant}</div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>
-                {i.qty} x {peso(i.unit_price)}
+                {/* Kilos, priced per kilo — the customer is holding a bag they
+                    watched being weighed, and the receipt has to match it. */}
+                {fmtQty(i.qty)}{i.by_kilo ? " kg x " : " x "}{peso(i.unit_price)}{i.by_kilo ? "/kg" : ""}
               </span>
-              <span>{peso(i.qty * i.unit_price)}</span>
+              <span>{peso(Math.round(i.qty * i.unit_price))}</span>
             </div>
           </div>
         );
