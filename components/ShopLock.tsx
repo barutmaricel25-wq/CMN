@@ -3,7 +3,7 @@
 // behind this. Once a device is let in it is not asked again, so staff meet it
 // once and then never think about it.
 import { useEffect, useState } from "react";
-import { useDB, tx } from "@/lib/store";
+import { useDB, tx, useSync } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { isUnlocked, markUnlocked, verifyPassword } from "@/lib/lock";
 import { describeDevice, deviceId } from "@/lib/device";
@@ -14,6 +14,7 @@ const SEEN_EVERY = 15 * 60 * 1000;
 
 export default function ShopLock({ children }: { children: React.ReactNode }) {
   const db = useDB();
+  const sync = useSync();
   const session = useSession();
   const stored = db.settings?.shop_password ?? "";
   const [mounted, setMounted] = useState(false);
@@ -37,6 +38,11 @@ export default function ShopLock({ children }: { children: React.ReactNode }) {
   // Put this device on the shop's list, and keep "last used" roughly current.
   useEffect(() => {
     if (!mounted || !me || !open || cutOff) return;
+    // Nothing may be written until this device has caught up. On a device that
+    // has only just installed the app, the copy in hand is the demo shop, and
+    // saying hello before the first sync would send that up on top of the real
+    // one.
+    if (sync.shared && sync.state !== "online") return;
     const now = Date.now();
     const seen = record ? new Date(record.last_seen).getTime() : 0;
     const fresh = record && now - seen < SEEN_EVERY && record.branch_id === (session?.branch_id ?? "");
@@ -59,7 +65,7 @@ export default function ShopLock({ children }: { children: React.ReactNode }) {
           ...patch,
         });
     });
-  }, [mounted, me, open, cutOff, record, session?.branch_id, session?.user_id]);
+  }, [mounted, me, open, cutOff, record, session?.branch_id, session?.user_id, sync.shared, sync.state]);
 
   // Whether a device has been let in is only known on the device, so nothing is
   // drawn until the browser is running it.

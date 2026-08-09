@@ -9,7 +9,7 @@ import { fmtDateTime, toCentavos } from "@/lib/util";
 import { audit } from "@/lib/actions";
 import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
 import { deviceId } from "@/lib/device";
-import { clearSampleData, countSampleData, SAMPLE_LABEL, SampleTable } from "@/lib/demo";
+import { clearSampleData, countSampleData, GROUP_LABEL, SampleGroup } from "@/lib/demo";
 import { cloudEnabled, tableMissing } from "@/lib/cloud";
 import { blankUser } from "@/lib/factories";
 import { inBranchOrder, Role, User, isManagerLevel, ROLES, ROLE_LABEL } from "@/lib/types";
@@ -284,50 +284,78 @@ function ShopPasswordPanel({ me }: { me: User }) {
 function SampleDataPanel() {
   const db = useDB();
   const [confirming, setConfirming] = useState(false);
+  const [picked, setPicked] = useState<Set<SampleGroup>>(new Set(["history", "products", "customers"]));
   const [flash, setFlash] = useState("");
-  const counts = countSampleData(db);
-  const total = Object.values(counts).reduce((t, n) => t + n, 0);
+  const t = countSampleData(db);
 
-  if (!total && !flash) return null;
+  if (!t.total && !flash) return null;
+
+  const lines = (
+    [
+      { g: "history", n: t.history, eg: [] as string[] },
+      { g: "products", n: t.products, eg: t.productNames },
+      { g: "customers", n: t.customers, eg: t.customerNames },
+    ] as { g: SampleGroup; n: number; eg: string[] }[]
+  ).filter((l) => l.n > 0);
+
+  const chosen = lines.filter((l) => picked.has(l.g));
+  const going = chosen.reduce((n, l) => n + l.n, 0);
+
+  const tick = (g: SampleGroup) =>
+    setPicked((s0) => {
+      const n = new Set(s0);
+      if (n.has(g)) n.delete(g); else n.add(g);
+      return n;
+    });
 
   return (
     <div className="card p-4 space-y-2 mb-3 border-amber-300 bg-amber-50">
-      <div className="label !mb-0">🧪 Sample data from the demo</div>
+      <div className="label !mb-0">🧪 Demo data the app came with</div>
       {flash ? (
         <p className="text-sm font-semibold text-emerald-800">{flash}</p>
       ) : (
         <>
           <p className="text-xs text-amber-900">
-            The app came with a fortnight of made-up trading so the dashboards weren&apos;t empty. It is filed against
-            the staff and branches it shipped with — so if those records were renamed to your people, their names now
-            appear on sales they never made. None of it is real.
+            A made-up shop was built into the app so nothing looked empty on the first day. It is filed against the
+            staff and branches it shipped with, so once those were renamed to your people their names appear on sales
+            they never made. Clearing it here clears it for every branch.
           </p>
-          <ul className="text-xs text-amber-900 font-semibold">
-            {(Object.keys(counts) as SampleTable[])
-              .filter((t) => counts[t] > 0)
-              .map((t) => (
-                <li key={t}>
-                  {counts[t]} {SAMPLE_LABEL[t]}
-                </li>
-              ))}
-          </ul>
+          <div className="space-y-1">
+            {lines.map(({ g, n, eg }) => (
+              <label key={g} className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 mt-0.5 shrink-0" checked={picked.has(g)} onChange={() => tick(g)} />
+                <span>
+                  <b>{n.toLocaleString()} {GROUP_LABEL[g].toLowerCase()}</b>
+                  {eg.length > 0 && <span className="block text-amber-800">{eg.join(", ")}{n > eg.length ? ` … and ${n - eg.length} more` : ""}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-amber-800">
+            Your staff and branches are never touched — those records are the ones you renamed, and they are yours
+            now. Stock counts on your own products stay as they are; the demo products take their own counts with them.
+            Clearing this much takes a minute or two to reach the other branches.
+          </p>
           {confirming ? (
             <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
-              <p className="text-sm font-semibold text-red-800">Remove all {total} sample rows?</p>
+              <p className="text-sm font-semibold text-red-800">Remove {going.toLocaleString()} demo records?</p>
               <p className="text-xs text-red-700 mt-0.5">
-                Only rows the app generated go. Your products, prices, customers, staff, branches, stock counts and
-                anything sold on the app are untouched — they are told apart by how their records were numbered, so
-                real work cannot be caught by this.
+                {chosen.map((l) => GROUP_LABEL[l.g].toLowerCase()).join(", ")}. Every branch sees this. Anything still
+                named on a receipt is hidden rather than erased so the books still add up, and your own products,
+                prices, customers and sales stay exactly as they are.
               </p>
               <div className="flex gap-2 mt-2">
                 <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirming(false)}>Keep them</button>
                 <button
                   className="btn-danger flex-1 !py-2"
                   onClick={() => {
-                    const gone = clearSampleData();
-                    const n = Object.values(gone).reduce((t, x) => t + x, 0);
+                    const gone = clearSampleData([...picked]);
                     setConfirming(false);
-                    setFlash(`✅ Removed ${n} sample rows. What is left is your own trading.`);
+                    setFlash(
+                      `✅ Removed ${gone.total.toLocaleString()} demo records — ` +
+                        `${gone.history.toLocaleString()} trading rows, ${gone.products.toLocaleString()} products, ` +
+                        `${gone.customers} customers. It is on its way to the other branches now.`
+                    );
                   }}
                 >
                   Yes, remove
@@ -335,8 +363,8 @@ function SampleDataPanel() {
               </div>
             </div>
           ) : (
-            <button className="btn-danger w-full !py-2" onClick={() => setConfirming(true)}>
-              🗑 Remove the sample trading ({total} rows)
+            <button className="btn-danger w-full !py-2" disabled={!going} onClick={() => setConfirming(true)}>
+              🗑 Remove {going.toLocaleString()} demo records
             </button>
           )}
         </>

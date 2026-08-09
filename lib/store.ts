@@ -198,6 +198,10 @@ let syncState: SyncState = cloudEnabled ? "connecting" : "device";
 let syncError = "";
 let lastPushed: DB | null = null; // what the server is known to hold
 let unsent = false;               // edits made here that the server hasn't got
+// Does the shared database already hold a finished copy? Until the answer is
+// known, this device must not send its own — a device that has just installed
+// the app is holding demo data, and pushing that would overwrite the shop.
+let serverHasData: boolean | null = null;
 let pushing = false;
 let pushAgain = false;
 let started = false;
@@ -238,7 +242,10 @@ let localEdits = 0;
 
 // Pull the shared database in, replacing whatever this device had cached.
 async function pull() {
-  if (unsent) return; // this device has edits the server hasn't got yet
+  // A device that has synced before keeps its unsent work; the refresh can wait.
+  // A device that never has is holding the demo shop the app ships with, and
+  // taking the shared copy is the only safe thing to do with it.
+  if (unsent && lastPushed) return;
   const startedAt = localEdits;
   const { db: raw, watermark } = await withTimeout(fetchAll(), 90000, "Loading");
   if (!raw.branches.length || !raw.users.length) {
@@ -250,6 +257,7 @@ async function pull() {
   if (localEdits !== startedAt) return; // edited while we were fetching
   db = fresh;
   lastPushed = clone(fresh);
+  unsent = false;
   writeMark(watermark);
   persist();
   notify();
@@ -346,6 +354,19 @@ async function fullUpload() {
   }
 }
 
+// Roughly how much has to go up: rows that changed, plus rows that vanished.
+function pushBudget(prev: DB, next: DB): number {
+  let rows = 0;
+  TABLES.forEach((t) => {
+    const before = prev[t] as unknown as { id: string }[];
+    const after = next[t] as unknown as { id: string }[];
+    rows += Math.abs(before.length - after.length) + Math.min(before.length, after.length) / 20;
+  });
+  // 20 seconds to get going, then a second for every fifty rows, up to five
+  // minutes for a really big clear-out.
+  return Math.min(300000, 20000 + Math.round(rows / 50) * 1000);
+}
+
 async function flush() {
   if (pushing) {
     pushAgain = true;
@@ -359,7 +380,11 @@ async function flush() {
       // Snapshot first — see the note in fullUpload. Recording the live object
       // after the send would mark edits made meanwhile as already sent.
       const target = clone(db!);
-      await withTimeout(pushDiff(lastPushed!, target), 20000, "Saving");
+      // Twenty seconds is right for a price change and nowhere near enough for
+      // clearing the demo data, which removes thousands of rows a couple of
+      // hundred at a time. Time it against the size of the job, or the save
+      // fails at the same point on every retry and never gets through.
+      await withTimeout(pushDiff(lastPushed!, target), pushBudget(lastPushed!, target), "Saving");
       lastPushed = target;
       if (!pushAgain) break;
     }
@@ -382,10 +407,14 @@ async function startCloud() {
     // An earlier build kept a second copy of everything here. It is no longer
     // offered, and on a catalogue this size it is worth the space back.
     localStorage.removeItem("cmn-pre-sync-backup");
-    if (await withTimeout(cloudReady(), 12000, "Connecting")) {
+    serverHasData = await withTimeout(cloudReady(), 12000, "Connecting");
+    if (serverHasData) {
       // Only the very first time does this device read everything; after that
       // it just asks what changed.
       await catchUp();
+      // Anything typed while this device was still connecting can go up now
+      // that there is a copy of the server to compare against.
+      if (unsent && lastPushed) await flush();
       setSync("online");
     } else {
       // Either nothing is up there yet, or a previous upload stopped halfway.
@@ -438,11 +467,12 @@ export function tx(fn: (d: DB) => void) {
   notify();
   if (cloudEnabled) {
     unsent = true;
-    // With no known server state there is nothing to diff against, so send the
-    // whole copy. Skipping here used to strand the edit on the device, where
-    // the next refresh quietly replaced it.
     if (lastPushed) void flush();
-    else void fullUpload();
+    // Nothing to diff against yet. Send the whole copy only when the shared
+    // database is known to be empty — that is the "first device uploads its
+    // data" case. Otherwise wait for the first pull: sending now would put this
+    // device's demo catalogue over the top of a shop already using the app.
+    else if (serverHasData === false) void fullUpload();
   }
   // Cross-tab sync on one device (and the order board demo).
   if (typeof window !== "undefined") {
