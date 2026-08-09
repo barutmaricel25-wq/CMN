@@ -88,10 +88,14 @@ export const tableMissing = (t: string) => absent.has(t);
 function isMissingTable(e: { message?: string; code?: string } | null): boolean {
   if (!e) return false;
   const m = (e.message ?? "").toLowerCase();
+  // Only a missing *table*. A missing column reads almost the same ("column
+  // customers.cp_number does not exist") and skipping the table for that would
+  // quietly stop the customers syncing at all — exactly the kind of silence
+  // this app must not have.
   return (
     e.code === "42P01" ||
     e.code === "PGRST205" ||
-    m.includes("does not exist") ||
+    /relation ".*" does not exist/.test(m) ||
     m.includes("could not find the table")
   );
 }

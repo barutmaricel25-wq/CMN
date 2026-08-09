@@ -18,13 +18,31 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
     ) : null;
   }
 
+  // "Offline" for every failure sends people to check their signal when the
+  // signal is fine and the database refused something. Only call it offline
+  // when it looks like the connection.
+  const netDown = typeof navigator !== "undefined" && navigator.onLine === false;
+  const looksLikeConnection =
+    netDown || /failed to fetch|networkerror|load failed|timed out|no answer/i.test(error);
+
   const look = {
     connecting: { dot: "bg-slate-400 animate-pulse", label: "Connecting…", tone: "text-slate-600" },
     saving: { dot: "bg-amber-500 animate-pulse", label: "Saving…", tone: "text-amber-700" },
     online: { dot: "bg-emerald-500", label: "All branches in sync", tone: "text-emerald-700" },
-    error: { dot: "bg-red-500", label: "Offline — will send when back", tone: "text-red-700" },
+    error: {
+      dot: "bg-red-500",
+      label: looksLikeConnection ? "Offline — will send when back" : "Not syncing — needs a look",
+      tone: "text-red-700",
+    },
     device: { dot: "bg-slate-400", label: "This device only", tone: "text-slate-600" },
   }[state];
+
+  // A refusal naming a table nobody has heard of is a migration that has not
+  // been run. Say which file, rather than leaving the message to be puzzled over.
+  const missing = /could not find the table '(?:public\.)?([a-z_]+)'|relation "(?:public\.)?([a-z_]+)" does not exist/i.exec(
+    error
+  );
+  const missingTable = missing ? missing[1] || missing[2] : "";
 
   if (!full) {
     return (
@@ -43,10 +61,18 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
       </div>
       <p className="text-xs text-slate-500 mt-1">
         {state === "error"
-          ? "Your work is safe on this device and will be sent to the other branches as soon as the connection returns."
+          ? looksLikeConnection
+            ? "Your work is safe on this device and will be sent to the other branches as soon as the connection returns."
+            : "Your work is safe on this device, but it is not reaching the other branches. The reason is below."
           : "All six branches share one set of books — a sale or stock change here shows everywhere within seconds."}
       </p>
       {error && <p className="text-[11px] text-red-600 mt-1 break-words">{error}</p>}
+      {missingTable && (
+        <p className="text-xs font-semibold text-amber-800 mt-1">
+          The shared database has no <code>{missingTable}</code> table. In Supabase → SQL Editor → New query, paste the
+          migration for it from <b>supabase/migrations/</b> and press Run, then press ⬇️ Get latest here.
+        </p>
+      )}
       <SyncButtons />
     </div>
   );
