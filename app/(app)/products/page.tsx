@@ -3,9 +3,9 @@
 // CRUD, three price tiers, Excel/CSV import, printable per-category price list.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useDB } from "@/lib/store";
+import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { saveBrand, deleteProducts } from "@/lib/actions";
+import { saveBrand, deleteProducts, audit } from "@/lib/actions";
 import { peso, toCentavos, brandName, compareByBrand, isInternalBarcode, matchesSearch, searchScore, perUnitLabel } from "@/lib/util";
 import { blankProduct } from "@/lib/factories";
 import { CATEGORIES, categoriesOf, Product, canEditStockAndPrices } from "@/lib/types";
@@ -19,6 +19,7 @@ export default function ProductsPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
   const [editing, setEditing] = useState<{ brand: string; category: string } | null>(null);
+  const [catMgr, setCatMgr] = useState(false);
   const [flash, setFlash] = useState("");
   const [viewing, setViewing] = useState<Product | null>(null);
   const [printMode, setPrintMode] = useState(false);
@@ -162,6 +163,7 @@ export default function ProductsPage() {
               {picking ? "✕ Cancel select" : "☑️ Select"}
             </button>
           )}
+          {canEdit && <button className="btn-secondary !py-2" onClick={() => setCatMgr(true)}>🗂 Categories</button>}
           {canEdit && <Link href="/products/import" className="btn-secondary !py-2">📥 Import price list</Link>}
           {canEdit && (
             <button className="btn-primary !py-2" onClick={() => setEditing({ brand: "", category: "" })}>
@@ -377,6 +379,117 @@ export default function ProductsPage() {
           onSaved={(msg, jumpTo) => { setFlash(msg); setEditing(null); setQ(jumpTo); setCat(""); }}
         />
       )}
+
+      {catMgr && (
+        <CategoryManager
+          onClose={() => setCatMgr(false)}
+          onDone={(msg) => { setFlash(msg); setCat(""); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Categories are not a list kept somewhere — a category exists because products
+// are filed under it. So the way to be rid of one is to move what is in it, and
+// the way to fix a name is to change it on everything at once. Both are the same
+// action: rename, and if the new name already exists the two merge.
+function CategoryManager({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
+  const db = useDB();
+  const session = useSession()!;
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [to, setTo] = useState("");
+
+  const counts = new Map<string, number>();
+  db.products.filter((p) => p.active).forEach((p) => counts.set(p.category, (counts.get(p.category) ?? 0) + 1));
+  const rows = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const names = rows.map(([c]) => c);
+
+  const target = to.trim();
+  const merging = names.some((c) => c.toLowerCase() === target.toLowerCase() && c !== renaming);
+
+  function apply() {
+    const from = renaming!;
+    let moved = 0;
+    tx((d) => {
+      // Inactive products move too, or the old name comes back the moment one
+      // of them is restored.
+      d.products.forEach((p) => {
+        if (p.category === from) { p.category = target; if (p.active) moved++; }
+      });
+      audit(d, session.user_id, "update", "category", from, { category: from }, { category: target });
+    });
+    setRenaming(null);
+    setTo("");
+    onDone(
+      merging
+        ? `🗂 Merged “${from}” into “${target}” — ${moved} product${moved !== 1 ? "s" : ""} moved.`
+        : `🗂 Renamed “${from}” to “${target}”.`
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="card w-full max-w-md p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-bold text-lg">🗂 Categories</h3>
+        <p className="text-xs text-slate-500 mt-1 mb-3">
+          One per worksheet of the price list you imported. To get rid of one, rename it to a category you are keeping —
+          everything in it moves across. A category with nothing in it disappears on its own.
+        </p>
+
+        <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl">
+          {rows.map(([c, n]) => (
+            <div key={c} className="px-3 py-2">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm font-semibold min-w-0 truncate">{c}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-slate-500">{n} product{n !== 1 ? "s" : ""}</span>
+                  <button
+                    className="btn-ghost !py-1 !px-2 text-xs"
+                    onClick={() => { setRenaming(renaming === c ? null : c); setTo(renaming === c ? "" : c); }}
+                  >
+                    ✏️
+                  </button>
+                </div>
+              </div>
+              {renaming === c && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    className="input"
+                    list="cat-mgr-options"
+                    value={to}
+                    autoFocus
+                    onChange={(e) => setTo(e.target.value)}
+                    placeholder="New name, or an existing category to merge into"
+                  />
+                  {merging && (
+                    <p className="text-xs font-semibold text-amber-700">
+                      “{target}” already exists — the {n} product{n !== 1 ? "s" : ""} here will join it, and “{c}”
+                      will be gone.
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button className="btn-ghost flex-1 !py-2" onClick={() => { setRenaming(null); setTo(""); }}>Cancel</button>
+                    <button
+                      className="btn-primary flex-1 !py-2"
+                      disabled={!target || target === c}
+                      onClick={apply}
+                    >
+                      {merging ? "Merge" : "Rename"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {rows.length === 0 && <p className="text-center text-sm text-slate-400 py-6">No products yet</p>}
+        </div>
+        <datalist id="cat-mgr-options">
+          {names.map((c) => <option key={c} value={c} />)}
+        </datalist>
+
+        <button className="btn-ghost w-full mt-3" onClick={onClose}>Close</button>
+      </div>
     </div>
   );
 }
@@ -440,7 +553,9 @@ function BrandEditor({
 }) {
   const db = useDB();
   const session = useSession();
-  const categories = categoriesOf(db.products);
+  // Only categories still in use — a deleted product must not keep its
+  // category alive in the suggestions.
+  const categories = categoriesOf(db.products.filter((x) => x.active));
   const [brandInput, setBrandInput] = useState(brand);
   const [catInput, setCatInput] = useState(category);
   const [types, setTypes] = useState<Product[]>(() =>
