@@ -13,6 +13,14 @@ import BarcodeInput from "@/components/BarcodeInput";
 
 const SHOW_LIMIT = 400;
 
+// The one value in the category picker that isn't a category.
+const NEW_CATEGORY = "\u0000new";
+
+// "Pet shampoo", "Pet Shampoo" and "SHAMPOO " are the same category as far as
+// a shop is concerned; only the app was treating them as three.
+const sameName = (a: string, b: string) =>
+  a.toLowerCase().replace(/[^a-z0-9]+/g, "") === b.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
 export default function ProductsPage() {
   const db = useDB();
   const session = useSession();
@@ -673,6 +681,10 @@ function BrandEditor({
   const categories = categoriesOf(db.products.filter((x) => x.active));
   const [brandInput, setBrandInput] = useState(brand);
   const [catInput, setCatInput] = useState(category);
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  // What they are typing may already exist under different capitals.
+  const clash = newCat.trim() ? categories.find((c) => sameName(c, newCat)) ?? "" : "";
   const [types, setTypes] = useState<Product[]>(() =>
     items.length ? items.map((p) => ({ ...p })) : [blankProduct(db.settings.low_stock_default)]
   );
@@ -782,12 +794,64 @@ function BrandEditor({
         </div>
         <div>
           <label className="label">Category</label>
-          <input className="input" list="category-options" placeholder="e.g. Cat Food Per Bag" value={catInput} onChange={(e) => setCatInput(e.target.value)} />
-          <datalist id="category-options">
-            {categories.map((c) => (
-              <option key={c} value={c} />
+          {/* Picked, never typed. Typing is how "Pet shampoo", "Pet Shampoo"
+              and "SHAMPOO" became three categories holding the same things. */}
+          <select
+            className="input"
+            value={catInput}
+            onChange={(e) => {
+              if (e.target.value === NEW_CATEGORY) { setNewCat(""); setAddingCat(true); }
+              else { setAddingCat(false); setCatInput(e.target.value); }
+            }}
+          >
+            <option value="">Choose a category…</option>
+            {/* A category that doesn't exist yet has no product in it, so it is
+                not in the list — it has to be carried here until this brand is
+                saved into it. */}
+            {(categories.includes(catInput) || !catInput ? categories : [...categories, catInput].sort((a, b) => a.localeCompare(b))).map((c) => (
+              <option key={c} value={c}>{c}</option>
             ))}
-          </datalist>
+            <option value={NEW_CATEGORY}>＋ Add a new category…</option>
+          </select>
+
+          {addingCat && (
+            <div className="mt-2 rounded-xl border border-slate-200 p-3 space-y-2">
+              <label className="label">Name of the new category</label>
+              <input
+                className="input"
+                autoFocus
+                placeholder="e.g. Cat food per bag"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+              />
+              {clash && (
+                <p className="text-xs font-semibold text-amber-700">
+                  “{clash}” already exists — that is the one to use, so the same things don&apos;t end up filed twice.
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  className="btn-ghost flex-1 !py-2"
+                  onClick={() => { setAddingCat(false); setNewCat(""); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary flex-1 !py-2"
+                  disabled={!newCat.trim()}
+                  onClick={() => {
+                    // A name that matches one already there is not a new
+                    // category, whatever it was typed as.
+                    setCatInput(clash || newCat.trim());
+                    setAddingCat(false);
+                    setNewCat("");
+                  }}
+                >
+                  {clash ? `Use “${clash}”` : "Add"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="pt-1">
