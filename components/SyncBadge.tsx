@@ -44,6 +44,11 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
   );
   const missingTable = missing ? missing[1] || missing[2] : "";
 
+  // A missing column is the same story — a migration that has not been run —
+  // but it is never skipped: skipping would drop what the shop just typed.
+  const col = /could not find the '([a-z_]+)' column of '([a-z_]+)'|column ([a-z_]+)\.([a-z_]+) does not exist/i.exec(error);
+  const missingColumn = col ? { column: col[1] || col[4], table: col[2] || col[3] } : null;
+
   if (!full) {
     return (
       <span className="inline-flex items-center gap-1.5" title={error || look.label}>
@@ -67,6 +72,14 @@ export default function SyncBadge({ full = false }: { full?: boolean }) {
           : "All six branches share one set of books — a sale or stock change here shows everywhere within seconds."}
       </p>
       {error && <p className="text-[11px] text-red-600 mt-1 break-words">{error}</p>}
+      {missingColumn && (
+        <p className="text-xs font-semibold text-amber-800 mt-1">
+          The shared database has no <code>{missingColumn.column}</code> column on <code>{missingColumn.table}</code>.
+          A database change hasn&apos;t been run yet: in Supabase → SQL Editor → New query, run the files in
+          <b> supabase/migrations/</b> you haven&apos;t run (they are safe to run twice), then press ⬇️ Get latest.
+          Nothing is lost meanwhile — this device keeps everything and sends it once the column exists.
+        </p>
+      )}
       {missingTable && (
         <p className="text-xs font-semibold text-amber-800 mt-1">
           The shared database has no <code>{missingTable}</code> table. In Supabase → SQL Editor → New query, paste the
