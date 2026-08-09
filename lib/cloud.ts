@@ -77,6 +77,34 @@ const rowsOf = (d: DB, t: Table) => (d[t] as unknown as Row[]) ?? [];
 const PAGE = 1000;
 const AT_ONCE = 4;
 
+// A table added by a later migration does not exist in a database that has not
+// had that migration run yet. One missing table must not stop the other
+// seventeen from syncing — the shop would simply stop saving, with an error
+// naming a table nobody has heard of. So: notice it, skip it, carry on, and let
+// the screen that needs it say what to run.
+const absent = new Set<string>();
+export const tableMissing = (t: string) => absent.has(t);
+
+function isMissingTable(e: { message?: string; code?: string } | null): boolean {
+  if (!e) return false;
+  const m = (e.message ?? "").toLowerCase();
+  return (
+    e.code === "42P01" ||
+    e.code === "PGRST205" ||
+    m.includes("does not exist") ||
+    m.includes("could not find the table")
+  );
+}
+
+function skipIfMissing(table: string, e: { message?: string; code?: string } | null): boolean {
+  if (!isMissingTable(e)) return false;
+  if (!absent.has(table)) {
+    absent.add(table);
+    console.warn(`Table "${table}" is not in the shared database yet — skipping it. Run its migration in the SQL Editor.`);
+  }
+  return true;
+}
+
 async function page(table: string, keyCol: string, from: number, withCount: boolean) {
   const q = sb()
     .from(table)
@@ -84,7 +112,10 @@ async function page(table: string, keyCol: string, from: number, withCount: bool
     .order(keyCol, { ascending: true })
     .range(from, from + PAGE - 1);
   const { data, error, count } = await q;
-  if (error) throw new Error(`${table}: ${error.message}`);
+  if (error) {
+    if (skipIfMissing(table, error)) return { rows: [] as Row[], count: 0 };
+    throw new Error(`${table}: ${error.message}`);
+  }
   return { rows: (data ?? []) as Row[], count: count ?? null };
 }
 
@@ -189,7 +220,10 @@ async function changedSince(table: string, since: string): Promise<Row[]> {
       .gt("updated_at", since)
       .order("updated_at", { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) throw new Error(`${table}: ${error.message}`);
+    if (error) {
+      if (skipIfMissing(table, error)) return out;
+      throw new Error(`${table}: ${error.message}`);
+    }
     out.push(...((data ?? []) as Row[]));
     if (!data || data.length < PAGE) return out;
   }
@@ -202,7 +236,7 @@ export async function fetchChanges(since: string): Promise<Changes> {
     .from("deletions")
     .select("table_name,row_id,deleted_at")
     .gt("deleted_at", since);
-  if (error) throw new Error(`deletions: ${error.message}`);
+  if (error && !skipIfMissing("deletions", error)) throw new Error(`deletions: ${error.message}`);
   const deletions = (dels ?? []) as (Changes["deletions"][number] & { deleted_at?: string })[];
 
   const watermark = markFrom(
@@ -226,9 +260,13 @@ export async function cloudReady(): Promise<boolean> {
 }
 
 async function upsert(table: string, rows: Row[]) {
+  if (absent.has(table)) return;
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await sb().from(table).upsert(rows.slice(i, i + 500));
-    if (error) throw new Error(`${table}: ${error.message}`);
+    if (error) {
+      if (skipIfMissing(table, error)) return;
+      throw new Error(`${table}: ${error.message}`);
+    }
   }
 }
 
@@ -272,13 +310,13 @@ export async function pushDiff(prev: DB, next: DB) {
     for (let i = 0; i < gone.length; i += 200) {
       const batch = gone.slice(i, i + 200);
       const { error } = await sb().from(t).delete().in("id", batch);
-      if (error) throw new Error(`${t}: ${error.message}`);
+      if (error && !skipIfMissing(t, error)) throw new Error(`${t}: ${error.message}`);
       // A row that is simply gone can't be noticed by asking for recent
       // changes, so leave a note for the other devices.
       const { error: delErr } = await sb()
         .from("deletions")
         .upsert(batch.map((id) => ({ table_name: t, row_id: id })));
-      if (delErr) throw new Error(`deletions: ${delErr.message}`);
+      if (delErr && !skipIfMissing("deletions", delErr)) throw new Error(`deletions: ${delErr.message}`);
     }
   }
   if (JSON.stringify(prev.settings) !== JSON.stringify(next.settings)) await putState("settings", next.settings);

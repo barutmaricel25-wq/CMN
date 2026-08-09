@@ -9,6 +9,7 @@ import { fmtDateTime, toCentavos } from "@/lib/util";
 import { audit } from "@/lib/actions";
 import { forgetUnlock, hashPassword, markUnlocked } from "@/lib/lock";
 import { deviceId } from "@/lib/device";
+import { cloudEnabled, tableMissing } from "@/lib/cloud";
 import { blankUser } from "@/lib/factories";
 import { inBranchOrder, Role, User, isManagerLevel, ROLES, ROLE_LABEL } from "@/lib/types";
 
@@ -364,6 +365,13 @@ function DevicesPanel({ me }: { me: User }) {
         Every phone and computer that has been let in. Removing one asks it for the shop password again — use it when a
         phone is lost or someone leaves, instead of changing the password for everybody.
       </p>
+      {cloudEnabled && tableMissing("devices") && (
+        <p className="text-xs font-semibold text-amber-800">
+          Only this device can be listed so far: the shared database has no <code>devices</code> table yet. Run
+          <b> supabase/migrations/0007_devices.sql</b> in the Supabase SQL Editor, then reopen the app on each phone.
+          Everything else keeps syncing in the meantime.
+        </p>
+      )}
       <p className="text-xs font-semibold text-slate-600">
         {all.length} device{all.length !== 1 ? "s" : ""} in total
         {gone.length > 0 && ` · ${rows.length} with access, ${gone.length} removed`}
