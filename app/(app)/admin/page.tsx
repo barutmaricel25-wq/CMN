@@ -290,9 +290,11 @@ function DevicesPanel({ me }: { me: User }) {
   useEffect(() => setMounted(true), []);
 
   const here = mounted ? deviceId() : "";
-  const rows = db.devices
-    .filter((d) => !d.revoked)
-    .sort((a, b) => b.last_seen.localeCompare(a.last_seen));
+  // Everything that has ever been let in, the removed ones included — a list
+  // that quietly drops them cannot answer "who has had access to this?".
+  const all = [...db.devices].sort((a, b) => b.last_seen.localeCompare(a.last_seen));
+  const rows = all.filter((d) => !d.revoked);
+  const gone = all.filter((d) => d.revoked);
 
   const locked = Boolean(db.settings.shop_password);
 
@@ -331,6 +333,15 @@ function DevicesPanel({ me }: { me: User }) {
     );
   }
 
+  function letBackIn(id: string) {
+    tx((d) => {
+      const i = d.devices.findIndex((x) => x.id === id);
+      if (i >= 0) d.devices[i] = { ...d.devices[i], revoked: false };
+      audit(d, me.id, "update", "device", id, { revoked: true }, { revoked: false });
+    });
+    setFlash("Let back in. It works again the next time it has signal.");
+  }
+
   function rename(id: string) {
     tx((d) => {
       const i = d.devices.findIndex((x) => x.id === id);
@@ -352,6 +363,10 @@ function DevicesPanel({ me }: { me: User }) {
       <p className="text-xs text-slate-500">
         Every phone and computer that has been let in. Removing one asks it for the shop password again — use it when a
         phone is lost or someone leaves, instead of changing the password for everybody.
+      </p>
+      <p className="text-xs font-semibold text-slate-600">
+        {all.length} device{all.length !== 1 ? "s" : ""} in total
+        {gone.length > 0 && ` · ${rows.length} with access, ${gone.length} removed`}
       </p>
 
       {flash && (
@@ -459,7 +474,34 @@ function DevicesPanel({ me }: { me: User }) {
             </div>
           );
         })}
-        {rows.length === 0 && (
+        {gone.map((d) => {
+          const user = db.users.find((u) => u.id === d.last_user_id);
+          const branch = db.branches.find((b) => b.id === d.branch_id);
+          return (
+            <div key={d.id} className="px-3 py-2 bg-slate-50">
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold flex items-center gap-2 text-slate-500">
+                    <span className="truncate line-through">{d.name || d.detected}</span>
+                    <span className="badge shrink-0 bg-slate-200 text-slate-600">removed</span>
+                    {d.id === here && (
+                      <span className="badge shrink-0 bg-emerald-100 text-emerald-700">this device</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {[d.name && d.detected, branch?.name, user && `last used by ${user.name}`, fmtDateTime(d.last_seen)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+                <button className="btn-ghost !py-1 !px-2 text-xs shrink-0" onClick={() => letBackIn(d.id)}>
+                  Let back in
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {all.length === 0 && (
           <p className="text-center text-sm text-slate-400 py-6">
             No devices listed yet — they appear as each one opens the app.
           </p>
