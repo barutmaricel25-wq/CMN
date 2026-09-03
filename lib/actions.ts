@@ -231,6 +231,18 @@ export function addDeliveryItem(delivery_id: string, product_id: string, qty: nu
   });
 }
 
+// Correcting a line, rather than deleting it and adding it back. Doing that on
+// every keystroke gave the row a new id each time, so the number could never be
+// typed over — 1 became 150 on the way to 50.
+export function setDeliveryItem(item_id: string, patch: { qty?: number; unit_cost?: number }) {
+  tx((d) => {
+    const i = d.delivery_items.find((x) => x.id === item_id);
+    if (!i) return;
+    if (patch.qty !== undefined && patch.qty > 0) i.qty = patch.qty;
+    if (patch.unit_cost !== undefined && patch.unit_cost > 0) i.unit_cost = patch.unit_cost;
+  });
+}
+
 export function removeDeliveryItem(item_id: string) {
   tx((d) => {
     d.delivery_items = d.delivery_items.filter((i) => i.id !== item_id);
@@ -253,6 +265,40 @@ export function postDelivery(delivery_id: string, user_id: string) {
       });
     del.status = "posted";
     audit(d, user_id, "post", "delivery", delivery_id, undefined, del);
+  });
+}
+
+// Undo a posted delivery: take back off the shelf exactly what it put on, and
+// leave it as a draft so the mistake can be corrected and posted again.
+export function unpostDelivery(delivery_id: string, user_id: string) {
+  tx((d) => {
+    const del = d.deliveries.find((x) => x.id === delivery_id);
+    if (!del || del.status !== "posted") return;
+    d.delivery_items
+      .filter((i) => i.delivery_id === delivery_id)
+      .forEach((i) => {
+        applyMovement(d, {
+          product_id: i.product_id, branch_id: del.branch_id,
+          from_location: receivingLoc(d, del.branch_id), to_location: null,
+          qty: i.qty, type: "adjustment", reference_id: delivery_id, performed_by: user_id,
+          note: "delivery undone",
+        });
+      });
+    del.status = "draft";
+    audit(d, user_id, "unpost", "delivery", delivery_id, { status: "posted" }, { status: "draft" });
+  });
+}
+
+// Throw the whole delivery away. A posted one gives its stock back first, so
+// the shelf figure never keeps something that was never really received.
+export function deleteDelivery(delivery_id: string, user_id: string) {
+  const del = getDB().deliveries.find((x) => x.id === delivery_id);
+  if (del?.status === "posted") unpostDelivery(delivery_id, user_id);
+  tx((d) => {
+    const gone = d.deliveries.find((x) => x.id === delivery_id);
+    d.delivery_items = d.delivery_items.filter((i) => i.delivery_id !== delivery_id);
+    d.deliveries = d.deliveries.filter((x) => x.id !== delivery_id);
+    if (gone) audit(d, user_id, "delete", "delivery", delivery_id, gone, undefined);
   });
 }
 

@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import {
-  createDelivery, updateDelivery, addDeliveryItem, removeDeliveryItem, postDelivery, savePDC,
+  createDelivery, updateDelivery, addDeliveryItem, removeDeliveryItem, setDeliveryItem,
+  postDelivery, unpostDelivery, deleteDelivery, savePDC,
 } from "@/lib/actions";
 import { blankPDC } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, brandName } from "@/lib/util";
@@ -17,6 +18,8 @@ export default function DeliveriesPage() {
   const db = useDB();
   const session = useSession();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editingHead, setEditingHead] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [search, setSearch] = useState("");
   const [msg, setMsg] = useState("");
   // New-delivery form
@@ -182,8 +185,75 @@ export default function DeliveriesPage() {
                 </div>
                 <div className="text-xs text-slate-500">Delivered {fmtDate(open.delivery_date)}</div>
               </div>
-              <button className="btn-ghost !py-1 shrink-0" onClick={() => setOpenId(null)}>← Back</button>
+              <div className="flex gap-1 shrink-0">
+                <button className="btn-ghost !py-1 !px-2" onClick={() => setEditingHead((v) => !v)}>✏️</button>
+                <button className="btn-ghost !py-1 shrink-0" onClick={() => setOpenId(null)}>← Back</button>
+              </div>
             </div>
+
+            {/* The paperwork was only editable while creating it, and a delivery
+                entered wrongly could not be undone at all. */}
+            {editingHead && (
+              <div className="mt-2 space-y-2 border-t border-slate-200 pt-2">
+                <div>
+                  <label className="label">Supplier</label>
+                  <input className="input" defaultValue={open.supplier_name}
+                    onBlur={(e) => updateDelivery(open.id, { supplier_name: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Contact number</label>
+                    <input className="input" defaultValue={open.supplier_contact}
+                      onBlur={(e) => updateDelivery(open.id, { supplier_contact: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Date delivered</label>
+                    <input className="input" type="date" defaultValue={open.delivery_date}
+                      onBlur={(e) => updateDelivery(open.id, { delivery_date: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Address</label>
+                  <input className="input" defaultValue={open.supplier_address}
+                    onBlur={(e) => updateDelivery(open.id, { supplier_address: e.target.value })} />
+                </div>
+
+                {open.status === "posted" && (
+                  <button
+                    className="btn-secondary w-full !py-2"
+                    onClick={() => {
+                      if (!window.confirm("Undo this delivery? The stock it added comes back off the shelf and it returns to a draft you can correct.")) return;
+                      unpostDelivery(open.id, session.user_id);
+                      setMsg("↩️ Undone — the stock has been taken back off and this is a draft again.");
+                    }}
+                  >
+                    ↩️ Undo and edit the items
+                  </button>
+                )}
+
+                {confirmDelete ? (
+                  <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3">
+                    <p className="text-sm font-semibold text-red-800">Delete this whole delivery?</p>
+                    <p className="text-xs text-red-700 mt-0.5">
+                      {open.status === "posted"
+                        ? "It has been posted, so the stock it added comes back off the shelf first. Every branch sees this."
+                        : "It was never posted, so no stock changes."}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button className="btn-ghost flex-1 !py-2" onClick={() => setConfirmDelete(false)}>Keep it</button>
+                      <button
+                        className="btn-danger flex-1 !py-2"
+                        onClick={() => { deleteDelivery(open.id, session.user_id); setConfirmDelete(false); setEditingHead(false); setOpenId(null); }}
+                      >
+                        Yes, delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="btn-danger w-full !py-2" onClick={() => setConfirmDelete(true)}>🗑 Delete this delivery</button>
+                )}
+              </div>
+            )}
             {open.status === "draft" ? (
               <div className="mt-2">
                 <label className="label">Payment terms</label>
@@ -232,22 +302,19 @@ export default function DeliveriesPage() {
                   </div>
                   {open.status === "draft" ? (
                     <>
-                      <input
-                        className="input !w-20 text-center !py-2"
-                        type="number" inputMode="numeric" value={i.qty}
-                        onChange={(e) => {
-                          const v = Math.max(1, parseInt(e.target.value) || 1);
-                          removeDeliveryItem(i.id);
-                          addDeliveryItem(open.id, i.product_id, v, i.unit_cost);
-                        }}
-                      />
+                      {/* The box holds what is being typed, and the record is
+                          only changed when the box is left. Saving on every
+                          keystroke made the 1 impossible to delete: it clamped
+                          the empty box straight back to 1, so 50 came out 150. */}
+                      <QtyBox value={i.qty} onCommit={(v) => setDeliveryItem(i.id, { qty: v })} />
                       <input
                         className="input !w-24 text-center !py-2"
+                        key={`${i.id}-cost`}
                         defaultValue={(i.unit_cost / 100).toFixed(2)}
                         inputMode="decimal"
                         onBlur={(e) => {
                           const c = toCentavos(e.target.value);
-                          if (c > 0) { removeDeliveryItem(i.id); addDeliveryItem(open.id, i.product_id, i.qty, c); }
+                          if (c > 0) setDeliveryItem(i.id, { unit_cost: c });
                         }}
                       />
                       <button className="text-slate-400 px-2" onClick={() => removeDeliveryItem(i.id)}>✕</button>
@@ -298,6 +365,37 @@ export default function DeliveriesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// A number you can actually type into: it holds what is being typed, empty
+// included, and only tells the record once you leave it.
+function QtyBox({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+
+  // While it is not being typed in, it follows the record.
+  if (!editing && text !== String(value)) setText(String(value));
+
+  const commit = () => {
+    setEditing(false);
+    const n = parseInt(text, 10);
+    if (Number.isFinite(n) && n > 0) onCommit(n);
+    else setText(String(value)); // blank or nonsense: leave it as it was
+  };
+
+  return (
+    <input
+      className="input !w-20 text-center !py-2"
+      type="number"
+      inputMode="numeric"
+      min="1"
+      value={text}
+      onFocus={(e) => { setEditing(true); e.currentTarget.select(); }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+    />
   );
 }
 
