@@ -19,9 +19,11 @@ export default function InventoryPage() {
   const [cat, setCat] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [view, setView] = useState<string>(""); // "" = my branch, "all" = compare, else branch id
-  const [adjust, setAdjust] = useState<null | { product: Product; location: Location }>(null);
+  const [adjust, setAdjust] = useState<null | { product: Product; location: Location; current: number }>(null);
   const [pinned, setPinned] = useState<null | { approved_by: string }>(null);
   const [delta, setDelta] = useState("");
+  // "set" = say what is on the shelf; "change" = add or take away.
+  const [mode, setMode] = useState<"set" | "change">("set");
   const [reason, setReason] = useState("");
 
   const categories = useMemo(() => {
@@ -154,12 +156,12 @@ export default function InventoryPage() {
                   {isOtherBranch ? (
                     <div className="text-center font-bold tabular-nums text-sm">{fmtQty(sr)}</div>
                   ) : (
-                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "stockroom" })}>{fmtQty(sr)}</button>
+                    <button className="text-center font-bold tabular-nums text-sm py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-orange-50" onClick={() => setAdjust({ product: p, location: "stockroom", current: sr })}>{fmtQty(sr)}</button>
                   )}
                   {isOtherBranch ? (
                     <div className="text-center font-bold tabular-nums text-sm">{fmtQty(sf)}</div>
                   ) : (
-                    <button className="text-center font-bold tabular-nums text-sm py-2 rounded hover:bg-slate-100" onClick={() => setAdjust({ product: p, location: "storefront" })}>{fmtQty(sf)}</button>
+                    <button className="text-center font-bold tabular-nums text-sm py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-orange-50" onClick={() => setAdjust({ product: p, location: "storefront", current: sf })}>{fmtQty(sf)}</button>
                   )}
                   <div className={`text-center font-extrabold tabular-nums text-sm ${low ? "text-red-600" : ""}`}>{fmtQty(total)}</div>
                 </div>
@@ -169,7 +171,9 @@ export default function InventoryPage() {
           </div>
           <p className="text-xs text-slate-400 text-center">
             {rows.length > 150 ? `Showing 150 of ${rows.length} — search or filter to narrow. ` : ""}
-            {isOtherBranch ? "Read-only view of another branch." : "Tap a 2F/Floor number to adjust (manager PIN + reason required)."}
+            {isOtherBranch
+              ? "Read-only view of another branch."
+              : "Tap any 2F or Floor number to correct it — type what is actually there. Manager or cashier PIN and a reason."}
           </p>
         </>
       )}
@@ -225,16 +229,61 @@ export default function InventoryPage() {
         />
       )}
 
-      {adjust && pinned && (
+      {adjust && pinned && (() => {
+        const typed = parseFloat(delta);
+        const change = !Number.isFinite(typed)
+          ? 0
+          : mode === "set"
+            ? Math.round((typed - adjust.current) * 1000) / 1000
+            : typed;
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setAdjust(null); setPinned(null); }}>
           <div className="card w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold">{adjust.product.name}</h3>
-            <p className="text-sm text-slate-500 mb-3">Adjust {adjust.location} qty (use − for damage/expiry)</p>
-            <label className="label">Change (+/−)</label>
-            <input className="input mb-2" type="number" inputMode="numeric" placeholder="e.g. -2" value={delta} onChange={(e) => setDelta(e.target.value)} autoFocus />
+            <p className="text-sm text-slate-500 mb-3">
+              {adjust.location === "stockroom" ? "2F stockroom" : "Store floor"} — currently{" "}
+              <b className="tabular-nums">{fmtQty(adjust.current)}</b>
+            </p>
+
+            {/* Correcting a number somebody typed wrongly is the common case,
+                and working out that 500 should be −450 is not the shop's job.
+                Say what is there; the app works out the difference. */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              {([
+                ["set", "Set to"],
+                ["change", "Add / take away"],
+              ] as const).map(([m, label]) => (
+                <button
+                  key={m}
+                  className={`btn !py-2 text-sm ${mode === m ? "bg-orange-700 text-white" : "bg-white border border-slate-300"}`}
+                  onClick={() => { setMode(m); setDelta(""); }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="label">{mode === "set" ? "What is actually there" : "Change (+/−)"}</label>
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              placeholder={mode === "set" ? "e.g. 50" : "e.g. -2"}
+              value={delta}
+              onChange={(e) => setDelta(e.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-slate-500 mb-2 mt-1">
+              {change === 0
+                ? mode === "set"
+                  ? "Type the number you counted."
+                  : "Type how many to add, or a minus to take away."
+                : `${fmtQty(adjust.current)} → ${fmtQty(adjust.current + change)} · ${change > 0 ? "adds" : "takes off"} ${fmtQty(Math.abs(change))}`}
+            </p>
             <label className="label">Reason (required)</label>
             <select className="input mb-2" value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="">Choose reason…</option>
+              <option>Wrong number entered</option>
               <option>Damaged</option>
               <option>Expired</option>
               <option>Count correction</option>
@@ -245,18 +294,19 @@ export default function InventoryPage() {
               <button className="btn-ghost flex-1" onClick={() => { setAdjust(null); setPinned(null); setDelta(""); setReason(""); }}>Cancel</button>
               <button
                 className="btn-primary flex-1"
-                disabled={!reason || !delta || parseInt(delta) === 0}
+                disabled={!reason || delta.trim() === "" || change === 0}
                 onClick={() => {
-                  adjustStock(adjust.product.id, myBranchId, adjust.location, parseInt(delta), reason, session.user_id, pinned.approved_by);
-                  setAdjust(null); setPinned(null); setDelta(""); setReason("");
+                  adjustStock(adjust.product.id, myBranchId, adjust.location, change, reason, session.user_id, pinned.approved_by);
+                  setAdjust(null); setPinned(null); setDelta(""); setReason(""); setMode("set");
                 }}
               >
-                Apply
+                {mode === "set" ? "Save" : "Apply"}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
