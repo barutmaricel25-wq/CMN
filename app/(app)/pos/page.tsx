@@ -12,6 +12,7 @@ import BarcodeInput from "@/components/BarcodeInput";
 import CustomerPicker from "@/components/CustomerPicker";
 import PinModal from "@/components/PinModal";
 import Receipt from "@/components/Receipt";
+import { missingProduct } from "@/lib/factories";
 
 const CART_KEY = "cmn-pos-cart-v1";
 
@@ -103,7 +104,7 @@ export default function POSPage() {
     setCart((c) => ({
       customer_id: id,
       lines: c.lines.map((l) => {
-        const p = db.products.find((pp) => pp.id === l.product_id)!;
+        const p = db.products.find((pp) => pp.id === l.product_id) ?? missingProduct(l.product_id);
         // A kilo price is the same for everyone — it is not one of the tiers.
         return { ...l, unit_price: l.by_kilo ? l.unit_price : priceFor(p, t), tier: t };
       }),
@@ -204,7 +205,7 @@ export default function POSPage() {
         {cart.lines.length === 0 && <p className="text-sm text-slate-400 py-6 text-center">Scan an item to start a sale</p>}
         <div className="divide-y divide-slate-100">
           {cart.lines.map((l, idx) => {
-            const p = db.products.find((pp) => pp.id === l.product_id)!;
+            const p = db.products.find((pp) => pp.id === l.product_id) ?? missingProduct(l.product_id);
             const sf = storefrontQty.get(p.id) ?? 0;
             // A kilo line takes a fraction of a sack off the floor, so that is
             // what has to be checked against — not the kilos.
@@ -365,7 +366,7 @@ export default function POSPage() {
           onCancel={() => setOverridePin(null)}
           onSuccess={() => {
             const l = cart.lines[overridePin.idx];
-            const p = db.products.find((pp) => pp.id === l.product_id)!;
+            const p = db.products.find((pp) => pp.id === l.product_id) ?? missingProduct(l.product_id);
             const v = window.prompt(`New price for ${p.name} (current ${peso(l.unit_price)}):`);
             if (v) {
               const cents = toCentavos(v);

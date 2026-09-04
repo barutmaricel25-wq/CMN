@@ -10,6 +10,7 @@ import { peso, brandName } from "@/lib/util";
 import { CATEGORIES, categoriesOf, Location, Product } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import PinModal from "@/components/PinModal";
+import { missingProduct } from "@/lib/factories";
 
 // null = on the count sheet but not counted yet (safe: never adjusted).
 type Counts = Record<string, number | null>;
@@ -63,7 +64,7 @@ export default function StockCountPage() {
   }
 
   const rows = Object.keys(counts).map((pid) => {
-    const p = db.products.find((x) => x.id === pid)!;
+    const p = db.products.find((x) => x.id === pid) ?? missingProduct(pid);
     const counted = counts[pid];
     const system = systemQty(pid);
     return { p, counted, system, diff: counted === null ? null : counted - system };

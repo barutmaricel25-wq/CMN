@@ -8,6 +8,7 @@ import { createTransfer, sendTransfer, receiveTransfer } from "@/lib/actions";
 import { fmtDateTime } from "@/lib/util";
 import { Transfer } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
+import { missingProduct } from "@/lib/factories";
 
 export default function TransfersPage() {
   const db = useDB();
@@ -61,7 +62,7 @@ export default function TransfersPage() {
             <button key={p.id} className="btn-secondary w-full justify-start text-sm" onClick={() => addItem(p.id)}>{p.name} {p.size_variant}</button>
           ))}
           {items.map((i, k) => {
-            const p = db.products.find((pp) => pp.id === i.product_id)!;
+            const p = db.products.find((pp) => pp.id === i.product_id) ?? missingProduct(i.product_id);
             return (
               <div key={k} className="flex items-center gap-2">
                 <span className="flex-1 text-sm font-semibold truncate">{p.name}</span>
@@ -128,7 +129,7 @@ export default function TransfersPage() {
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {db.transfer_items.filter((i) => i.transfer_id === confirmT.id).map((i) => {
-                const p = db.products.find((pp) => pp.id === i.product_id)!;
+                const p = db.products.find((pp) => pp.id === i.product_id) ?? missingProduct(i.product_id);
                 return (
                   <div key={i.id} className="flex items-center gap-2">
                     <span className="flex-1 text-sm truncate">{p.name} <span className="text-xs text-slate-400">(req {i.qty_requested}{i.qty_sent != null ? `, sent ${i.qty_sent}` : ""})</span></span>

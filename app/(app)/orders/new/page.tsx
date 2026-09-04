@@ -8,7 +8,7 @@ import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { createOnlineOrder, priceFor } from "@/lib/actions";
 import { peso, uid } from "@/lib/util";
-import { blankCustomer } from "@/lib/factories";
+import { blankCustomer, missingProduct } from "@/lib/factories";
 import { CustomerType, OnlineOrderItem, OrderSource, PaymentMethod } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import CustomerPicker from "@/components/CustomerPicker";
@@ -41,7 +41,7 @@ function NewOrderInner() {
   const tier: CustomerType = customer?.type ?? "retail";
 
   function addItem(pid: string) {
-    const p = db.products.find((x) => x.id === pid)!;
+    const p = db.products.find((x) => x.id === pid) ?? missingProduct(pid);
     setItems((list) => {
       const i = list.findIndex((x) => x.product_id === pid);
       if (i >= 0) return list.map((x, k) => (k === i ? { ...x, qty: x.qty + 1 } : x));
@@ -61,7 +61,7 @@ function NewOrderInner() {
     const c = db.customers.find((x) => x.id === id);
     const t: CustomerType = c?.type ?? "retail";
     setItems((list) =>
-      list.map((x) => ({ ...x, unit_price: priceFor(db.products.find((p) => p.id === x.product_id)!, t) }))
+      list.map((x) => ({ ...x, unit_price: priceFor(db.products.find((p) => p.id === x.product_id) ?? missingProduct(x.product_id), t) }))
     );
   }
 
@@ -132,7 +132,7 @@ function NewOrderInner() {
         ))}
         <div className="divide-y divide-slate-100">
           {items.map((i, k) => {
-            const p = db.products.find((pp) => pp.id === i.product_id)!;
+            const p = db.products.find((pp) => pp.id === i.product_id) ?? missingProduct(i.product_id);
             return (
               <div key={k} className="py-2 flex items-center gap-2">
                 <div className="flex-1 min-w-0">

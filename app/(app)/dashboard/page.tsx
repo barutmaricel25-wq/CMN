@@ -7,6 +7,7 @@ import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { peso, manilaDateKey, daysAgoKey } from "@/lib/util";
 import { isManagerLevel } from "@/lib/types";
+import { missingProduct } from "@/lib/factories";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   AreaChart, Area,
@@ -80,7 +81,7 @@ export default function Dashboard() {
   const best = [...qtyByProductMonth.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([pid, qty]) => ({ p: db.products.find((pp) => pp.id === pid)!, qty }));
+    .map(([pid, qty]) => ({ p: db.products.find((pp) => pp.id === pid) ?? missingProduct(pid), qty }));
   const bestMax = Math.max(...best.map((b) => b.qty), 1);
 
   // Channel + payment breakdown (this month)

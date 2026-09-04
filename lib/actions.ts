@@ -101,9 +101,15 @@ export function deleteProducts(ids: string[], user_id: string): { deleted: numbe
     ids.forEach((id) => {
       const p = d.products.find((x) => x.id === id);
       if (!p) return;
+      // Anything that still names this product keeps it — hidden, not erased.
+      // A delivery or a transfer that mentions a product nobody can look up is
+      // a screen that cannot draw itself.
       const used =
         d.sale_items.some((x) => x.product_id === id) ||
         d.stock_movements.some((x) => x.product_id === id) ||
+        d.delivery_items.some((x) => x.product_id === id) ||
+        d.transfer_items.some((x) => x.product_id === id) ||
+        d.online_orders.some((o) => o.items.some((it) => it.product_id === id)) ||
         d.inventory.some((x) => x.product_id === id && x.qty !== 0);
       if (used) {
         audit(d, user_id, "update", "product", id, p, { ...p, active: false });

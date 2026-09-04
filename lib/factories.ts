@@ -18,6 +18,32 @@ export function blankCustomer(branch_id = ""): Customer {
   };
 }
 
+// A product a record still points at but the price list no longer has —
+// deleted, or cleared out with the demo data. Records outlive products, so
+// every screen has to be able to draw one; without this they threw and took the
+// whole page down with them.
+export function missingProduct(id: string): Product {
+  return {
+    id,
+    sku: "",
+    barcode: "",
+    name: "Removed from the price list",
+    brand: "",
+    category: "",
+    unit: "",
+    size_variant: "",
+    cost_price: 0,
+    ord_ws_price: null,
+    wholesale_price: 0,
+    suki_price: null,
+    retail_price: 0,
+    per_kilo: null,
+    low_stock_threshold: 0,
+    image_url: null,
+    active: false,
+  };
+}
+
 export function blankProduct(lowStockDefault: number): Product {
   return {
     id: uid(), sku: "", barcode: "", name: "", brand: "", category: "dry food",

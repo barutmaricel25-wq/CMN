@@ -9,7 +9,7 @@ import {
   createDelivery, updateDelivery, addDeliveryItem, removeDeliveryItem, setDeliveryItem,
   postDelivery, unpostDelivery, deleteDelivery, savePDC,
 } from "@/lib/actions";
-import { blankPDC } from "@/lib/factories";
+import { blankPDC, missingProduct } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, brandName } from "@/lib/util";
 import { DeliveryTerms, TERMS_LABEL, isManagerLevel } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
@@ -293,7 +293,7 @@ export default function DeliveriesPage() {
 
           <div className="card divide-y divide-slate-100">
             {openItems.map((i) => {
-              const p = db.products.find((pp) => pp.id === i.product_id)!;
+              const p = db.products.find((pp) => pp.id === i.product_id) ?? missingProduct(i.product_id);
               return (
                 <div key={i.id} className="px-4 py-2.5 flex items-center gap-2">
                   <div className="flex-1 min-w-0">
