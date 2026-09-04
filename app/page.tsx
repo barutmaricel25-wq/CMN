@@ -24,6 +24,12 @@ export default function LoginPage() {
 
   const byBranch = (bid: string | null) => db.users.filter((u) => u.branch_id === bid && u.active);
 
+  // The demo staff have ids the app wrote itself; anyone the shop adds gets a
+  // random one. All of them demo means none of the shop's own have arrived.
+  const staff = db.users.filter((u) => u.active);
+  const onlyDemoStaff =
+    staff.length > 0 && staff.every((u) => /^u-(owner|mgr|stf)-?/.test(u.id));
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-orange-50 to-orange-200">
       <div className="w-full max-w-md">
@@ -33,6 +39,21 @@ export default function LoginPage() {
           <h1 className="text-2xl font-extrabold text-orange-900">CMN Trading Corporation</h1>
           <p className="text-orange-800/70 text-sm">Multi-branch management system</p>
         </div>
+
+        {/* Nobody can sign in to a list of people who don't work here. If the
+            staff on this device are the ones the app shipped with, say so and
+            give the way in, rather than leaving the shop locked out of its own
+            till. */}
+        {onlyDemoStaff && (
+          <div className="card p-4 mb-4 border-amber-300 bg-amber-50">
+            <div className="font-bold text-sm text-amber-900">These aren&apos;t your staff</div>
+            <p className="text-xs text-amber-900 mt-1">
+              This device is showing the people the app came with, so your own staff haven&apos;t reached it. Sign in as{" "}
+              <b>{byBranch(null)[0]?.name ?? "the owner"}</b> with PIN <b className="font-mono">9999</b>, then go to
+              Menu → Admin &amp; Settings → Data &amp; sync and press <b>🔄 Rebuild from the shared database</b>.
+            </p>
+          </div>
+        )}
 
         <div className="card p-4 mb-4">
           <h2 className="font-bold mb-2">Owner</h2>
