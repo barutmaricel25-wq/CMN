@@ -33,21 +33,21 @@ const notify = () => listeners.forEach((l) => l());
 // saved here: a customer written before branches were added comes back from
 // Supabase without one, and every screen that groups by branch then loses it.
 //
-// fillEmpty is the one difference between the two. A device with nothing saved
-// should get the demo data to look at; an empty list in the shared database is
-// a real answer — the shop may have deleted every product — and must never be
-// quietly refilled with demo rows.
-function normalize(raw: unknown, fillEmpty = true): DB {
+// An empty list is an answer, not a gap. A shop that has deleted every demo
+// product has an empty catalogue, and refilling it from the seed puts the demo
+// shop back — which then syncs to every branch and reads as the system
+// resetting itself. The demo is only ever for a device with nothing saved at
+// all, and load() handles that case on its own.
+//
+// Branches and staff are the exception: with those empty nobody could sign in,
+// so an empty one there means the saved copy is broken, not deliberate.
+function normalize(raw: unknown): DB {
   const d = (raw ?? {}) as Partial<DB> & Record<string, unknown>;
   const seed = buildSeed();
 
   const arr = <T,>(v: unknown, fallback: T[] = []): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
-  // "Nothing saved" means fall back to the seed; "deliberately empty" doesn't.
-  const orSeed = <T,>(list: T[], seedList: T[]): T[] => (list.length || !fillEmpty ? list : seedList);
+  const orSeed = <T,>(list: T[], seedList: T[]): T[] => (list.length ? list : seedList);
 
-  // An empty branches/users list means the saved copy is unusable — nobody
-  // could even sign in — so fall back to the seed rather than showing a blank
-  // screen forever.
   const savedBranches = orSeed(arr(d.branches, seed.branches), seed.branches);
   // Devices saved before branches had a listing order get it back by name.
   const orderByName = new Map(seed.branches.map((b) => [b.name.toLowerCase(), b.sort_order]));
@@ -77,8 +77,8 @@ function normalize(raw: unknown, fillEmpty = true): DB {
     hourly_rate: u.hourly_rate ?? Math.round(75500 / 8),
   }));
 
-  // Products gained ORD W/S and per-kilo columns; reseed if the catalog is empty.
-  const products = orSeed(arr(d.products, seed.products), seed.products);
+  // Never refilled from the seed: an empty catalogue is a real state.
+  const products = arr<DB["products"][number]>(d.products);
   // The whole ACCESSORIES sheet originally imported as "collars/leash/harness".
   // Move the brushes, feeders, balls and mats to their real categories on
   // devices that already installed the app — only for rows still sitting in
@@ -96,7 +96,7 @@ function normalize(raw: unknown, fillEmpty = true): DB {
   // Customers used to be shared across the whole business. The ones already on
   // file are Unit 17's.
   const unit17 = d.branches.find((b) => b.name.toLowerCase() === "unit 17")?.id ?? d.branches[0]?.id ?? "";
-  d.customers = orSeed(arr(d.customers, seed.customers), seed.customers).map((c) => ({
+  d.customers = arr<DB["customers"][number]>(d.customers).map((c) => ({
     ...c,
     // Text boxes need a string to hold on to. A field left undefined makes its
     // input stop tracking what the record actually says, which is how a value
@@ -122,7 +122,7 @@ function normalize(raw: unknown, fillEmpty = true): DB {
   }));
 
   // Collections introduced later.
-  d.inventory = orSeed(arr(d.inventory, seed.inventory), seed.inventory);
+  d.inventory = arr<DB["inventory"][number]>(d.inventory);
   d.stock_movements = arr<DB["stock_movements"][number]>(d.stock_movements);
   d.delivery_items = arr<DB["delivery_items"][number]>(d.delivery_items);
   d.transfers = arr<DB["transfers"][number]>(d.transfers);
@@ -253,7 +253,7 @@ async function pull() {
   }
   // Rows written before a field existed come back without it; fill them in
   // here, exactly as for a copy saved by an older build.
-  const fresh = normalize(raw, false);
+  const fresh = normalize(raw);
   if (localEdits !== startedAt) return; // edited while we were fetching
   db = fresh;
   lastPushed = clone(fresh);
@@ -323,7 +323,7 @@ async function catchUp() {
   writeMark(changes.watermark);
   if (touched) {
     // Changed rows arrive raw from the server, so upgrade the shape again.
-    db = freshLists(normalize({ ...d }, false));
+    db = freshLists(normalize({ ...d }));
     lastPushed = clone(db);
     persist();
     notify();
