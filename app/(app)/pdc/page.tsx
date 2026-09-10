@@ -45,9 +45,9 @@ export default function PDCPage() {
 
   function exportCSV() {
     downloadCSV(`pdc-cheques-${today}.csv`, [
-      ["Due date", "Direction", "Company / Customer", "Check no", "Bank", "Amount (PHP)", "Date of payment", "Status", "Branch"],
+      ["Due date", "Direction", "Company / Customer", "Check no", "Name on cheque", "Bank", "Amount (PHP)", "Date of payment", "Status", "Branch"],
       ...rows.map((c) => [
-        c.due_date, c.direction, c.party_name, c.check_number, c.bank,
+        c.due_date, c.direction, c.party_name, c.check_number, c.check_name ?? "", c.bank,
         (c.amount / 100).toFixed(2), c.date_issued, c.status,
         db.branches.find((b) => b.id === c.branch_id)?.name ?? "",
       ]),
@@ -116,6 +116,7 @@ export default function PDCPage() {
                   </div>
                   <div className="text-xs text-slate-500">
                     #{c.check_number || "—"} · {c.bank || "bank ?"} · paid {fmtDate(c.date_issued)}
+                    {c.check_name && c.check_name !== c.party_name && <> · in the name of {c.check_name}</>}
                   </div>
                   <div className={`text-xs font-semibold mt-0.5 ${late ? "text-red-600" : soon ? "text-amber-700" : "text-slate-500"}`}>
                     📅 Due {fmtDate(c.due_date)}{late ? " — OVERDUE" : ""}
@@ -161,6 +162,15 @@ export default function PDCPage() {
                 <input className="input" value={editing.check_number} onChange={(e) => setEditing({ ...editing, check_number: e.target.value })} /></div>
               <div><label className="label">Bank</label>
                 <input className="input" value={editing.bank} onChange={(e) => setEditing({ ...editing, bank: e.target.value })} /></div>
+            </div>
+            <div>
+              <label className="label">Name on the cheque</label>
+              <input
+                className="input"
+                placeholder={editing.party_name}
+                value={editing.check_name ?? ""}
+                onChange={(e) => setEditing({ ...editing, check_name: e.target.value })}
+              />
             </div>
             <div><label className="label">Amount ₱</label>
               <input className="input" inputMode="decimal" defaultValue={editing.amount ? (editing.amount / 100).toFixed(2) : ""} onBlur={(e) => setEditing({ ...editing, amount: toCentavos(e.target.value) })} /></div>

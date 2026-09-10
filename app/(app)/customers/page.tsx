@@ -413,7 +413,12 @@ function CustomerPDC({ customer }: { customer: Customer }) {
         {cheques.map((c) => (
           <div key={c.id} className="px-3 py-2 flex justify-between items-center text-sm">
             <div className="min-w-0">
-              <div className="font-semibold">#{c.check_number || "—"} · {c.bank || "bank ?"}</div>
+              <div className="font-semibold">
+                #{c.check_number || "—"} · {c.bank || "bank ?"}
+                {c.check_name && c.check_name !== customer.name && (
+                  <span className="font-normal text-slate-500"> · {c.check_name}</span>
+                )}
+              </div>
               <div className="text-xs text-slate-500">
                 paid {fmtDate(c.date_issued)} · due {fmtDate(c.due_date)}
               </div>
@@ -443,6 +448,9 @@ function CustomerPDC({ customer }: { customer: Customer }) {
               <div><label className="label">Bank</label>
                 <input className="input" placeholder="BDO…" value={draft.bank} onChange={(e) => setDraft({ ...draft, bank: e.target.value })} /></div>
             </div>
+            <div><label className="label">Name on the cheque</label>
+              <input className="input" placeholder={customer.name} value={draft.check_name ?? ""}
+                onChange={(e) => setDraft({ ...draft, check_name: e.target.value })} /></div>
             <div><label className="label">Amount ₱</label>
               <input className="input" inputMode="decimal" onChange={(e) => setDraft({ ...draft, amount: toCentavos(e.target.value) })} /></div>
             <div className="grid grid-cols-2 gap-2">

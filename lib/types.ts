@@ -172,15 +172,23 @@ export interface StockMovement {
   created_at: string;
 }
 
-// COD or post-dated cheque terms counted from the delivery date.
-export type DeliveryTerms = "cod" | "pdc30" | "pdc45" | "pdc60";
-export const TERMS_DAYS: Record<DeliveryTerms, number> = { cod: 0, pdc30: 30, pdc45: 45, pdc60: 60 };
+// COD or post-dated cheque terms counted from the delivery date. "custom" is
+// for the suppliers who agree to something that is not 30, 45 or 60 — the days
+// are on the delivery itself.
+export type DeliveryTerms = "cod" | "pdc30" | "pdc45" | "pdc60" | "custom";
+export const TERMS_DAYS: Record<DeliveryTerms, number> = { cod: 0, pdc30: 30, pdc45: 45, pdc60: 60, custom: 0 };
 export const TERMS_LABEL: Record<DeliveryTerms, string> = {
   cod: "COD (Cash on Delivery)",
   pdc30: "PDC 30 days",
   pdc45: "PDC 45 days",
   pdc60: "PDC 60 days",
+  custom: "Custom — choose the days",
 };
+
+// How many days this delivery's cheque actually runs for.
+export function termsDays(d: { terms: DeliveryTerms; custom_days?: number }): number {
+  return d.terms === "custom" ? Math.max(0, Math.round(d.custom_days ?? 0)) : TERMS_DAYS[d.terms];
+}
 
 export interface Delivery {
   id: string;
@@ -190,6 +198,12 @@ export interface Delivery {
   supplier_address: string;
   delivery_date: string;      // YYYY-MM-DD
   terms: DeliveryTerms;
+  // Only used when terms is "custom".
+  custom_days: number;
+  // The amount agreed with the supplier, when it isn't the sum of the lines —
+  // a discount, freight, or an invoice that simply says something else. Null
+  // means the lines add up to the total, which is the usual case.
+  custom_total: number | null;  // centavos
   due_date: string | null;    // PDC due date (delivery date + terms days)
   received_by: string;
   status: "draft" | "posted";
@@ -350,6 +364,9 @@ export interface PDCCheck {
   delivery_id: string | null;
   branch_id: string;
   check_number: string;
+  // The name written on the cheque — often not the same as the company it is
+  // being handed to.
+  check_name: string;
   bank: string;
   amount: number;                // centavos
   date_issued: string;           // date of payment / when cheque was handed over

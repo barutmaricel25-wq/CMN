@@ -4,9 +4,7 @@
 import { tx, getDB } from "./store";
 import { uid } from "./util";
 import {
-  DB, Location, MovementType, Product, Sale, SaleItem, CustomerType,
-  PaymentMethod, OnlineOrder, OrderStatus, OnlineOrderItem,
-  Expense, PDCCheck, PDCStatus, PayrollRecord, Delivery, DeliveryTerms, TERMS_DAYS,
+  DB, Location, MovementType, Product, Sale, SaleItem, CustomerType, PaymentMethod, OnlineOrder, OrderStatus, OnlineOrderItem, Expense, PDCCheck, PDCStatus, PayrollRecord, Delivery, DeliveryTerms, TERMS_DAYS, termsDays,
 } from "./types";
 
 // Where incoming stock lands for a branch: stockroom normally, but straight
@@ -194,10 +192,10 @@ export function quickPull(from_branch_id: string, to_branch_id: string, product_
 // ---------- Deliveries ----------
 export function createDelivery(args: {
   branch_id: string; supplier_name: string; supplier_contact: string; supplier_address: string;
-  delivery_date: string; terms: DeliveryTerms; received_by: string; note: string;
+  delivery_date: string; terms: DeliveryTerms; custom_days?: number; received_by: string; note: string;
 }): string {
   const id = uid();
-  const days = TERMS_DAYS[args.terms];
+  const days = termsDays({ terms: args.terms, custom_days: args.custom_days });
   tx((d) => {
     d.deliveries.push({
       id, branch_id: args.branch_id,
@@ -206,6 +204,8 @@ export function createDelivery(args: {
       supplier_address: args.supplier_address,
       delivery_date: args.delivery_date,
       terms: args.terms,
+      custom_days: Math.max(0, Math.round(args.custom_days ?? 0)),
+      custom_total: null,
       due_date: days > 0 ? dueDateFrom(args.delivery_date, days) : null,
       received_by: args.received_by, status: "draft", note: args.note || null,
       created_at: new Date().toISOString(),
@@ -215,12 +215,17 @@ export function createDelivery(args: {
 }
 
 // Update supplier details / terms on an existing draft (recomputes the due date).
-export function updateDelivery(id: string, patch: Partial<Pick<Delivery, "supplier_name" | "supplier_contact" | "supplier_address" | "delivery_date" | "terms" | "note">>) {
+export function updateDelivery(
+  id: string,
+  patch: Partial<Pick<Delivery,
+    "supplier_name" | "supplier_contact" | "supplier_address" | "delivery_date" | "terms" |
+    "custom_days" | "custom_total" | "note">>
+) {
   tx((d) => {
     const del = d.deliveries.find((x) => x.id === id);
     if (!del) return;
     Object.assign(del, patch);
-    const days = TERMS_DAYS[del.terms];
+    const days = termsDays(del);
     del.due_date = days > 0 ? dueDateFrom(del.delivery_date, days) : null;
   });
 }

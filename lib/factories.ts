@@ -64,7 +64,7 @@ export function blankExpense(branch_id: string, recorded_by: string): Expense {
 export function blankPDC(branch_id: string): PDCCheck {
   return {
     id: uid(), direction: "payable", party_name: "", customer_id: null, delivery_id: null,
-    branch_id, check_number: "", bank: "", amount: 0,
+    branch_id, check_number: "", check_name: "", bank: "", amount: 0,
     date_issued: manilaDateKey(), due_date: manilaDateKey(),
     status: "pending", note: "", created_at: new Date().toISOString(),
   };

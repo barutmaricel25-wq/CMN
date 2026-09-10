@@ -116,6 +116,8 @@ function normalize(raw: unknown): DB {
     supplier_contact: del.supplier_contact ?? "",
     supplier_address: del.supplier_address ?? "",
     terms: del.terms ?? "cod",
+    custom_days: del.custom_days ?? 0,
+    custom_total: del.custom_total ?? null,
     due_date: del.due_date ?? null,
     // Older rows stored an ISO timestamp; the UI now expects YYYY-MM-DD.
     delivery_date: (del.delivery_date ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10),
@@ -136,7 +138,10 @@ function normalize(raw: unknown): DB {
   d.online_orders = arr<DB["online_orders"][number]>(d.online_orders);
   d.attendance = arr<DB["attendance"][number]>(d.attendance);
   d.expenses = arr<DB["expenses"][number]>(d.expenses);
-  d.pdc_checks = arr<DB["pdc_checks"][number]>(d.pdc_checks);
+  d.pdc_checks = arr<DB["pdc_checks"][number]>(d.pdc_checks).map((c) => ({
+    ...c,
+    check_name: c.check_name ?? "",
+  }));
   d.payroll = arr<DB["payroll"][number]>(d.payroll).map((r) => ({
     ...r,
     sss_contribution: r.sss_contribution ?? 0,

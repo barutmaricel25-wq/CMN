@@ -11,7 +11,7 @@ import {
 } from "@/lib/actions";
 import { blankPDC, missingProduct } from "@/lib/factories";
 import { peso, toCentavos, fmtDate, manilaDateKey, brandName } from "@/lib/util";
-import { DeliveryTerms, TERMS_LABEL, isManagerLevel } from "@/lib/types";
+import { DeliveryTerms, TERMS_DAYS, TERMS_LABEL, isManagerLevel } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
 export default function DeliveriesPage() {
@@ -19,6 +19,9 @@ export default function DeliveriesPage() {
   const session = useSession();
   const [openId, setOpenId] = useState<string | null>(null);
   const [editingHead, setEditingHead] = useState(false);
+  const [editingTotal, setEditingTotal] = useState(false);
+  const [nDays, setNDays] = useState("");
+  const [pdcName, setPdcName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [search, setSearch] = useState("");
   const [msg, setMsg] = useState("");
@@ -54,6 +57,10 @@ export default function DeliveriesPage() {
   const openItems = open ? db.delivery_items.filter((i) => i.delivery_id === open.id) : [];
   const openUnits = openItems.reduce((t, i) => t + i.qty, 0);
   const openValue = openItems.reduce((t, i) => t + i.qty * i.unit_cost, 0);
+  // What the delivery is actually worth: the agreed amount if one was entered.
+  const openTotal = open?.custom_total ?? openValue;
+  // Days for a new delivery on custom terms.
+  const nDaysValue = nTerms === "custom" ? Math.max(0, parseInt(nDays, 10) || 0) : TERMS_DAYS[nTerms];
 
   function addByScan(code: string) {
     if (!open || open.status === "posted") return;
@@ -78,14 +85,15 @@ export default function DeliveriesPage() {
         party_name: open.supplier_name,
         delivery_id: open.id,
         check_number: pdcCheque.trim(),
+        check_name: pdcName.trim() || open.supplier_name,
         bank: pdcBank.trim(),
-        amount: openValue,
+        amount: openTotal,
         date_issued: open.delivery_date,
         due_date: open.due_date,
         note: `${TERMS_LABEL[open.terms]} — delivery ${fmtDate(open.delivery_date)}`,
       }, session!.user_id);
     }
-    setPdcCheque(""); setPdcBank(""); setMsg("");
+    setPdcCheque(""); setPdcBank(""); setPdcName(""); setMsg("");
   }
 
   return (
@@ -121,22 +129,37 @@ export default function DeliveriesPage() {
                   <option key={t} value={t}>{TERMS_LABEL[t]}</option>
                 ))}
               </select>
-              {nTerms !== "cod" && (
+              {nTerms === "custom" && (
+                <div className="mt-2">
+                  <label className="label">How many days until the cheque can be encashed</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    placeholder="e.g. 21"
+                    value={nDays}
+                    onChange={(e) => setNDays(e.target.value)}
+                  />
+                </div>
+              )}
+              {nTerms !== "cod" && nDaysValue > 0 && (
                 <p className="text-xs text-amber-700 font-semibold mt-1">
-                  Cheque due {fmtDate(addDays(nDate, nTerms === "pdc30" ? 30 : nTerms === "pdc45" ? 45 : 60))}
+                  Cheque due {fmtDate(addDays(nDate, nDaysValue))}
                 </p>
               )}
             </div>
             <button
               className="btn-primary w-full"
-              disabled={!nName.trim()}
+              disabled={!nName.trim() || (nTerms === "custom" && nDaysValue <= 0)}
               onClick={() => {
                 const id = createDelivery({
                   branch_id: branchId, supplier_name: nName.trim(), supplier_contact: nContact.trim(),
                   supplier_address: nAddress.trim(), delivery_date: nDate, terms: nTerms,
+                  custom_days: nDaysValue,
                   received_by: session.user_id, note: "",
                 });
-                setNName(""); setNContact(""); setNAddress(""); setNTerms("cod");
+                setNName(""); setNContact(""); setNAddress(""); setNTerms("cod"); setNDays("");
                 setOpenId(id);
               }}
             >
@@ -266,6 +289,26 @@ export default function DeliveriesPage() {
                     <option key={t} value={t}>{TERMS_LABEL[t]}</option>
                   ))}
                 </select>
+                {open.terms === "custom" && (
+                  <div className="mt-2">
+                    <label className="label">Days until it can be encashed</label>
+                    <input
+                      className="input"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      placeholder="e.g. 21"
+                      key={`${open.id}-days`}
+                      defaultValue={open.custom_days || ""}
+                      // Editing 21 should replace it, not make 213.
+                      onFocus={(e) => e.currentTarget.select()}
+                      onBlur={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        if (Number.isFinite(n) && n > 0) updateDelivery(open.id, { custom_days: n });
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-2 text-sm">
@@ -328,11 +371,50 @@ export default function DeliveriesPage() {
             {openItems.length === 0 && <p className="text-center text-sm text-slate-400 py-6">Scan items to add them</p>}
           </div>
 
-          {/* Totals */}
-          <div className="card p-4 grid grid-cols-3 gap-2 text-center">
-            <Tile label="Item lines" value={String(openItems.length)} />
-            <Tile label="Total stock items" value={String(openUnits)} />
-            <Tile label="Total amount" value={peso(openValue)} strong />
+          {/* Totals. The lines add up to one number; the invoice sometimes says
+              another — a discount, freight, a supplier's own rounding. The
+              agreed amount is what the cheque is written for, so it has to be
+              possible to say it. */}
+          <div className="card p-4 space-y-2">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <Tile label="Item lines" value={String(openItems.length)} />
+              <Tile label="Total stock items" value={String(openUnits)} />
+              <Tile label="Total amount" value={peso(openTotal)} strong />
+            </div>
+            {open.status === "draft" && (
+              <>
+                {editingTotal ? (
+                  <div className="border-t border-slate-200 pt-2">
+                    <label className="label">Total agreed with the supplier ₱</label>
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      autoFocus
+                      key={`${open.id}-total`}
+                      defaultValue={open.custom_total !== null ? (open.custom_total / 100).toFixed(2) : ""}
+                      placeholder={(openValue / 100).toFixed(2)}
+                      onBlur={(e) => {
+                        const c = toCentavos(e.target.value);
+                        updateDelivery(open.id, { custom_total: e.target.value.trim() === "" ? null : c });
+                        setEditingTotal(false);
+                      }}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      The lines come to {peso(openValue)}. Leave it empty to use that.
+                    </p>
+                  </div>
+                ) : (
+                  <button className="btn-ghost w-full !py-2 text-xs" onClick={() => setEditingTotal(true)}>
+                    ✏️ {open.custom_total !== null ? "Change the agreed total" : "Enter a different total (discount, freight…)"}
+                  </button>
+                )}
+                {open.custom_total !== null && !editingTotal && (
+                  <p className="text-xs text-amber-700 font-semibold text-center">
+                    Agreed total, not the sum of the lines ({peso(openValue)}).
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {open.status === "draft" && open.terms !== "cod" && (
@@ -348,8 +430,17 @@ export default function DeliveriesPage() {
                   <input className="input" placeholder="BDO / Metrobank…" value={pdcBank} onChange={(e) => setPdcBank(e.target.value)} />
                 </div>
               </div>
+              <div>
+                <label className="label">Name on the cheque</label>
+                <input
+                  className="input"
+                  placeholder={open.supplier_name}
+                  value={pdcName}
+                  onChange={(e) => setPdcName(e.target.value)}
+                />
+              </div>
               <p className="text-xs text-slate-500">
-                Amount {peso(openValue)} · due {open.due_date ? fmtDate(open.due_date) : "—"} — saved to the PDC Due Dates screen when you post.
+                Amount {peso(openTotal)} · due {open.due_date ? fmtDate(open.due_date) : "—"} — saved to the PDC Due Dates screen when you post.
               </p>
             </div>
           )}
