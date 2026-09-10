@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import { useDB, tx } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { createOnlineOrder, priceFor } from "@/lib/actions";
-import { peso, uid } from "@/lib/util";
+import { peso, uid, matchesSearch, searchScore, compareByBrand } from "@/lib/util";
 import { blankCustomer, missingProduct } from "@/lib/factories";
 import { CustomerType, OnlineOrderItem, OrderSource, PaymentMethod } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
@@ -67,7 +67,11 @@ function NewOrderInner() {
 
   const total = items.reduce((s, i) => s + i.unit_price * i.qty, 0);
   const results = search.trim().length >= 2
-    ? db.products.filter((p) => p.active && (p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase()))).slice(0, 6)
+    ? db.products
+        .filter((p) => p.active && matchesSearch(p, search))
+        // Closest match first, not whatever sorts earliest.
+        .sort((a, b) => searchScore(a, search) - searchScore(b, search) || compareByBrand(a, b))
+        .slice(0, 8)
     : [];
 
   return (

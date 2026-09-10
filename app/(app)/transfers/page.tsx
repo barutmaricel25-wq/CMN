@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { createTransfer, sendTransfer, receiveTransfer } from "@/lib/actions";
-import { fmtDateTime } from "@/lib/util";
+import { fmtDateTime, matchesSearch, searchScore, compareByBrand } from "@/lib/util";
 import { Transfer } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import { missingProduct } from "@/lib/factories";
@@ -39,7 +39,11 @@ export default function TransfersPage() {
   }
 
   const results = search.trim().length >= 2
-    ? db.products.filter((p) => p.active && p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
+    ? db.products
+        .filter((p) => p.active && matchesSearch(p, search))
+        // Closest match first, not whatever sorts earliest.
+        .sort((a, b) => searchScore(a, search) - searchScore(b, search) || compareByBrand(a, b))
+        .slice(0, 8)
     : [];
 
   return (

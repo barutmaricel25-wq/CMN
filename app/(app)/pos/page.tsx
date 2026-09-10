@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDB } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { completeSale, priceFor, voidSale, CartLine } from "@/lib/actions";
-import { peso, toCentavos, fmtQty, packKg, sellableByKilo } from "@/lib/util";
+import { peso, toCentavos, fmtQty, packKg, sellableByKilo, matchesSearch, searchScore, compareByBrand } from "@/lib/util";
 import { CustomerType, PaymentMethod, Product, Sale, User } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 import CustomerPicker from "@/components/CustomerPicker";
@@ -116,13 +116,9 @@ export default function POSPage() {
   const results =
     search.trim().length >= 2
       ? db.products
-          .filter(
-            (p) =>
-              p.active &&
-              (p.name.toLowerCase().includes(search.toLowerCase()) ||
-                p.brand.toLowerCase().includes(search.toLowerCase()) ||
-                p.sku.toLowerCase().includes(search.toLowerCase()))
-          )
+          .filter((p) => p.active && matchesSearch(p, search))
+          // Closest match first, not whatever sorts earliest.
+          .sort((a, b) => searchScore(a, search) - searchScore(b, search) || compareByBrand(a, b))
           .slice(0, 8)
       : [];
 

@@ -10,7 +10,7 @@ import {
   postDelivery, unpostDelivery, deleteDelivery, savePDC,
 } from "@/lib/actions";
 import { blankPDC, missingProduct } from "@/lib/factories";
-import { peso, toCentavos, fmtDate, manilaDateKey, brandName } from "@/lib/util";
+import { peso, toCentavos, fmtDate, manilaDateKey, brandName, matchesSearch, searchScore, compareByBrand } from "@/lib/util";
 import { DeliveryTerms, TERMS_DAYS, TERMS_LABEL, isManagerLevel } from "@/lib/types";
 import BarcodeInput from "@/components/BarcodeInput";
 
@@ -71,7 +71,11 @@ export default function DeliveriesPage() {
   }
 
   const results = search.trim().length >= 2 && open
-    ? db.products.filter((p) => p.active && (p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase()))).slice(0, 6)
+    ? db.products
+        .filter((p) => p.active && matchesSearch(p, search))
+        // Closest match first, not whatever sorts earliest.
+        .sort((a, b) => searchScore(a, search) - searchScore(b, search) || compareByBrand(a, b))
+        .slice(0, 8)
     : [];
 
   function post() {
